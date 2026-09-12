@@ -130,6 +130,13 @@ export class Relay {
     return card;
   }
 
+  // This agent's own status, as the user's context: `/context/<user>` on
+  // every client's state. It is how the fleet view knows what each teammate's
+  // AI is doing on which machine.
+  sendContext(context) {
+    this.send("context_updated", { context });
+  }
+
   async members() {
     const r = await fetch(`${env("RELAY_HTTP")}/members?orgId=${encodeURIComponent(this.orgId)}`, {
       headers: { "x-session-token": env("AGENT_SESSION_TOKEN") },

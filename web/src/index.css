@@ -1,0 +1,38 @@
+:root {
+  color-scheme: light dark;
+  color: rgba(0, 0, 0, 0.87);
+  background-color: #f9f9f9;
+
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+/* Buttons carry no default styling. Everything in this app styles its own —
+   and the Vite starter's defaults that used to live here (a black fill, a
+   #646cff hover border, a 4px focus ring) leaked a second, unrelated palette
+   into every screen, most visibly as a violet ring around whichever card had
+   last been touched. */
+button {
+  font-family: inherit;
+  font-size: 1em;
+  cursor: pointer;
+}

@@ -1,0 +1,27 @@
+name = "tiktokforwork"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+# Connectors used to sync only while the app was open — the one moment you do
+# not need it. Fifteen minutes is the compromise between "already there when you
+# look" and a model bill that scales with idle installs.
+crons = ["*/15 * * * *"]
+
+[[durable_objects.bindings]]
+name = "ORG_RELAY"
+class_name = "OrgRelay"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["OrgRelay"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tiktokforwork"
+database_id = "08d78a7f-45eb-4837-8393-4f7c92bf39cb"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "tiktokforwork-media"

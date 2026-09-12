@@ -1,0 +1,1045 @@
+/** @typedef {{ recipientUserID: string, cardType: string, title: string, summary: string, context: string, priority: string, routingReason: string, agentRoute?: string, labels?: string[] }} DecisionCardArgs */
+
+import { cardText } from "./cardCopy.js";
+
+export const DEMO_USER_IDS = ["user-toru", "user-tanaka", "user-yui", "user-alex"];
+
+// Person node ids of the passed organization (the real members).
+export function memberIdsOf(organization) {
+  return (organization?.nodes || [])
+    .filter((n) => n.kind === "person")
+    .map((n) => n.id);
+}
+// Pull { id, name, role } out of the org nodes. The label is "Name · role".
+function membersWithRoles(organization) {
+  return (organization?.nodes || [])
+    .filter((n) => n.kind === "person")
+    .map((n) => ({
+      id: n.id,
+      // Prefer the role carried on the node. The label is display text and
+      // splitting it back apart breaks on any name containing " · ".
+      role: String(n.role || (String(n.label || "").split(" · ")[1] || "member")).trim().toLowerCase(),
+    }));
+}
+
+// Whole words only: includes("dev") also fires on "deviation" and "device",
+// and includes("lead") on "leading".
+//
+// \b is defined over ASCII word characters, so \bデザイナー\b can never match:
+// neither デ nor ー is a \w, so there is no boundary to find. Word boundaries
+// are what stop "dev" firing on "deviation"; that problem only exists for
+// terms written in a script that has them. Japanese terms are unambiguous
+// enough that substring matching is correct for them — with a floor on length,
+// because a one-character name is inside half the words in the language (健 is
+// in 保健, 明 is in 説明).
+//
+// The term can be a person's name, so it is escaped: a name is not a pattern.
+const MIN_MENTION_LENGTH = 2;
+
+function isAsciiTerm(word) {
+  return /^[\x00-\x7F]+$/.test(word);
+}
+
+function escapeForRegExp(word) {
+  return word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/// Does `lower` (already lowercased) name `term` as a term of its own, rather
+/// than carry it inside a longer word?
+export function mentions(lower, term) {
+  const word = String(term || "").trim().toLowerCase();
+  if (word.length < MIN_MENTION_LENGTH) return false;
+  return isAsciiTerm(word)
+    ? new RegExp(`\\b${escapeForRegExp(word)}\\b`, "i").test(lower)
+    : lower.includes(word);
+}
+
+// Route by a role word in the instruction to a real teammate who holds that
+// role. "ask the designer to review" -> the person whose role is "designer".
+// Uses the actual team, so it works for any org instead of hardcoded demo ids.
+function matchRealRole(text, senderID, organization) {
+  const lower = String(text || "").toLowerCase();
+  const members = membersWithRoles(organization);
+  const says = (word) => mentions(lower, word);
+  // "manager" and "lead" are deliberately absent: escalation is handled by the
+  // manages edge below, which knows who a specific person reports to, and this
+  // rule would shadow it with whoever happens to hold the admin role.
+  const roleWords = {
+    designer: ["designer", "design", "デザイナー"],
+    engineer: ["engineer", "developer", "エンジニア"],
+    admin: ["admin", "owner"],
+    triager: ["triager", "triage"],
+    maintainer: ["maintainer"],
+  };
+  for (const [role, words] of Object.entries(roleWords)) {
+    if (!words.some(says)) continue;
+    const person = members.find((m) => m.role === role && m.id !== senderID);
+    if (person) {
+      return { recipientUserID: person.id, routingReason: `Routed to the ${role}`, forceOverride: false };
+    }
+  }
+  return null;
+}
+
+// Display name for a user id: prefer the org node label ("<name> · <role>"),
+// then the demo map, then the raw id.
+export function displayNameOf(organization, userID) {
+  const node = (organization?.nodes || []).find((n) => n.id === userID && n.kind === "person");
+  if (node?.label) return node.label.split(" · ")[0].trim();
+  return userNameFor(userID);
+}
+
+/// A one-person business: unless the work clearly belongs to the contractor or
+/// the client, the owner decides. Defaulting anywhere else invents a colleague.
+/// (For a real org, defaultRecipient picks a member instead of a demo id.)
+
+const TEAM_ROUTES = [
+  {
+    phrases: ["デザイナー", "外注", "designer", "contractor"],
+    userID: "user-yui",
+    label: "Design",
+  },
+  {
+    phrases: ["クライアント", "先方", "取引先", "client", "customer"],
+    userID: "user-tanaka",
+    label: "Client",
+  },
+];
+
+const ROLE_ROUTES = [
+  {
+    phrases: ["ロゴ", "バナー", "デザイン", "画像", "ヒーロー", "logo", "banner", "design", "figma"],
+    userID: "user-yui",
+    reason: "Visual work goes to the contractor",
+  },
+  {
+    phrases: ["納品", "検収", "先方確認", "承認依頼", "delivery", "sign-off", "change order"],
+    userID: "user-tanaka",
+    reason: "The client has to agree to this",
+  },
+  {
+    phrases: ["実装", "デプロイ", "バグ", "サーバー", "コード", "deploy", "bug", "server", "code", "staging"],
+    userID: "user-alex",
+    reason: "Engineering work goes to Alex",
+  },
+  {
+    phrases: ["請求", "見積", "入金", "経費", "単価", "値上げ", "invoice", "quote", "pricing", "payment"],
+    userID: "user-toru",
+    reason: "Money decisions are yours alone",
+  },
+];
+
+
+function defaultRecipient(senderID, organization) {
+  const members = memberIdsOf(organization);
+  if (!members.length) return "user-toru"; // demo fallback
+  const approver = (organization.edges || []).find(
+    (e) => e.kind === "canApprove" && e.fromID !== senderID && members.includes(e.fromID)
+  );
+  if (approver) return approver.fromID;
+  return members.find((id) => id !== senderID) || members[0];
+}
+
+function matchTeamRoute(text, senderID, organization) {
+  const lower = String(text || "").toLowerCase();
+  const members = memberIdsOf(organization);
+  for (const route of TEAM_ROUTES) {
+    if (route.userID === senderID) continue;
+    if (members.length && !members.includes(route.userID)) continue;
+    if (route.phrases.some((phrase) => lower.includes(phrase))) {
+      return route;
+    }
+  }
+  return null;
+}
+
+function matchRoleRoute(text, senderID, organization) {
+  const lower = String(text || "").toLowerCase();
+  const members = memberIdsOf(organization);
+  for (const route of ROLE_ROUTES) {
+    if (route.userID === senderID) continue;
+    if (members.length && !members.includes(route.userID)) continue;
+    if (route.phrases.some((phrase) => lower.includes(phrase))) {
+      return route;
+    }
+  }
+  return null;
+}
+
+export function resolveRecipientTarget(text, senderID, organization) {
+  const lower = String(text || "").toLowerCase();
+
+  const members = memberIdsOf(organization);
+  const candidateIds = members.length ? members : DEMO_USER_IDS;
+  for (const userID of candidateIds) {
+    if (userID === senderID) continue;
+    const displayName = displayNameOf(organization, userID);
+    // The same whole-word rule the role words get, and for a sharper reason:
+    // this branch is `forceOverride`, so a name found inside another word does
+    // not merely mis-route — it overrules a correct answer from the model, and
+    // then tells the recipient they were "Mentioned". A team with a Ken had
+    // "the deploy is broken" routed to him; one with a Sam had "keep the same
+    // pricing", "taken", "broken", "already".
+    if (mentions(lower, displayName)) {
+      return {
+        recipientUserID: userID,
+        routingReason: `Mentioned ${displayName}`,
+        forceOverride: true,
+      };
+    }
+  }
+    const team = matchTeamRoute(text, senderID, organization);
+  if (team) {
+    return {
+      recipientUserID: team.userID,
+      routingReason: `Routed to ${team.label} team · ${userNameFor(team.userID)}`,
+      forceOverride: true,
+    };
+  }
+
+  const role = matchRoleRoute(text, senderID, organization);
+  if (role) {
+    return {
+      recipientUserID: role.userID,
+      routingReason: role.reason,
+      forceOverride: true,
+    };
+  }
+
+  if (lower.includes("manager")) {
+    const edge = organization?.edges?.find(
+      (item) => item.toID === senderID && item.kind === "manages"
+    );
+    if (edge) {
+      return {
+        recipientUserID: edge.fromID,
+        routingReason: `You are ${userNameFor(senderID)}'s manager`,
+        forceOverride: true,
+      };
+    }
+  }
+
+  // Below the manager rules above: "escalate to my manager" must reach the
+  // sender's actual manager, not whoever holds the admin role.
+  const realRole = matchRealRole(text, senderID, organization);
+  if (realRole) return realRole;
+
+  const managerEdge = organization?.edges?.find(
+    (item) => item.toID === senderID && item.kind === "manages"
+  );
+  if (managerEdge?.fromID && managerEdge.fromID !== senderID) {
+    return {
+      recipientUserID: managerEdge.fromID,
+      routingReason: `Escalated to ${userNameFor(managerEdge.fromID)}`,
+      forceOverride: false,
+    };
+  }
+
+  // In a one-person business the decision usually comes back to the owner, so
+  // routing to yourself is the right answer rather than a bug. Picking "anyone
+  // but the sender" hands your own work to a client.
+  return {
+    recipientUserID: defaultRecipient(senderID, organization),
+    routingReason: "This one is yours to decide",
+    forceOverride: false,
+  };
+}
+
+/// The businesses the router may file a card under: the org's list, by slug.
+export function businessSlugsOf(organization) {
+  return (organization?.businesses || []).map((b) => (typeof b === "string" ? b : b?.slug)).filter(Boolean);
+}
+
+export function buildAgentTools(organization) {
+  const members = memberIdsOf(organization);
+  const recipientEnum = members.length ? members : DEMO_USER_IDS;
+  const businesses = businessSlugsOf(organization);
+  return [
+    {
+      type: "function",
+      function: {
+        name: "create_decision_card",
+        description:
+          "Turn a messy workplace instruction into a structured decision card routed to the right teammate. Rewrite the sender's words — never echo them.",
+        parameters: {
+          type: "object",
+          properties: {
+            recipientUserID: {
+              type: "string",
+              enum: recipientEnum,
+              description:
+                "Who should receive and act on this decision. Pick an id from the members listed under Organization in the user message. Route by the org graph: a named person → that person; an approval → a member with a canApprove edge; an escalation → the sender's manager. Never pick an id that is not in the list.",
+            },
+            cardType: {
+              type: "string",
+              enum: ["approval", "delegation", "notification", "task", "revision"],
+            },
+            title: {
+              type: "string",
+              description: "3-8 words, action-oriented, no filler like 'tell Bob'",
+            },
+            summary: {
+              type: "string",
+              description: "1-2 sentences, third person, what the recipient must decide or do",
+            },
+            context: {
+              type: "string",
+              description:
+                "2-4 structured facts as 'label: detail' segments separated by · e.g. 'deadline: Friday demo · metric: p95 +18% · scope: auth endpoint · action: hotfix branch'",
+            },
+            priority: {
+              type: "string",
+              enum: ["low", "medium", "high", "urgent"],
+            },
+            routingReason: {
+              type: "string",
+              description: "One sentence: why this person owns the decision",
+            },
+            labels: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional GitHub-style labels e.g. bug, infra, blocked",
+            },
+            ...(businesses.length
+              ? {
+                  business: {
+                    type: "string",
+                    enum: businesses,
+                    description:
+                      "Which of the organization's businesses this decision is about. Pick one whenever the instruction plausibly concerns it.",
+                  },
+                }
+              : {}),
+            recommendation: {
+              type: "string",
+              enum: ["approve", "decline", "revise"],
+              description:
+                "What you would advise the recipient to do, on the facts in the instruction. Omit when the instruction gives you no basis to advise.",
+            },
+            recommendationReason: {
+              type: "string",
+              description:
+                "One or two sentences on why, citing the specific fact that decides it (an amount, a deadline, a precedent). Written in the READER's language, like every other field.",
+            },
+            newBusiness: {
+              type: "string",
+              description:
+                "Only when no listed business fits: the name of the business this is about, 1-3 words, the venture or product itself (never a person or a task). Company-wide matters are 'General'.",
+            },
+          },
+          required: [
+            "recipientUserID",
+            "cardType",
+            "title",
+            "summary",
+            "context",
+            "priority",
+            "routingReason",
+          ],
+          additionalProperties: false,
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "set_priority",
+        description:
+          "Override urgency when the instruction clearly signals time sensitivity or low importance",
+        parameters: {
+          type: "object",
+          properties: {
+            level: { type: "string", enum: ["low", "medium", "high", "urgent"] },
+            reason: { type: "string" },
+          },
+          required: ["level", "reason"],
+          additionalProperties: false,
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "add_context",
+        description: "Attach extra structured context extracted from the instruction",
+        parameters: {
+          type: "object",
+          properties: {
+            key: { type: "string" },
+            value: { type: "string" },
+          },
+          required: ["key", "value"],
+          additionalProperties: false,
+        },
+      },
+    },
+  ];
+}
+
+// Back-compat: any importer of the old constant gets the demo-id variant.
+export const AGENT_TOOLS = buildAgentTools(null);
+
+const SYSTEM_PROMPT = `You route workplace instructions to the right teammate as structured Decision Cards.
+
+Call create_decision_card once with all fields filled:
+- Write title, summary, context and routingReason in the READER's language,
+  given as "Reader language" below. The sender's language is irrelevant: an
+  English instruction read by a Japanese user must produce a Japanese card.
+  Deciding is the reader's job, so the card is written for them.
+- Never echo the sender's exact wording in title or summary
+- title: 3-8 words, action-oriented
+- summary: third person, what the recipient must decide or do
+- context: deadlines, metrics, amounts, blockers — always 2-4 segments as
+  'label: detail' joined by ·. The app reads the label to choose an icon, so use
+  only: deadline / scope / metric / amount / action — or in Japanese
+  期限 / 範囲 / 指標 / 金額 / 対応.
+- priority: infer from urgency cues in the instruction
+- recommendation: what you would advise, and why, when the instruction gives
+  you the facts to advise on. The person still decides; this is a starting
+  point, not an answer, so leave it out rather than guess.
+
+Routing (critical):
+- recipientUserID MUST be one of the member ids listed under Organization in the
+  user message. Never invent an id or pick one that is not listed.
+- A person named in the instruction → that person.
+- Something that needs sign-off or approval → a member with a canApprove edge.
+- An escalation → the sender's manager (a "manages" edge pointing at the sender).
+- Otherwise pick the member whose role best fits the instruction.`;
+
+export function buildUserPrompt({ text, sender, organization, readerLanguage, senderContext }) {
+  const orgContext = organizationContext(organization);
+  const contextBlock = senderContext && senderContext.trim()
+    ? `\nSender context: ${senderContext.trim()}\n`
+    : "";
+  const businesses = (organization?.businesses || [])
+    .map((b) => (typeof b === "string" ? `- ${b}` : `- ${b.slug}: ${b.name}`))
+    .join("\n");
+  const businessBlock = `\nBusinesses the organization runs (file the card under the one it is about; name a new one in newBusiness only when none fits):\n${businesses || "- (none yet)"}\n`;
+  return `Sender: ${sender.name} (${sender.id}, ${sender.role})
+Reader language: ${readerLanguage || "ja"}
+Instruction: ${text}
+${contextBlock}${businessBlock}
+Organization:
+${orgContext}`;
+}
+
+/// The business an instruction names, by slug or by name, or null. The local
+/// router's answer, and the check on the model's: a slug it invented is not
+/// one of ours.
+export function matchBusiness(text, organization) {
+  const lower = String(text || "").toLowerCase();
+  const businesses = (organization?.businesses || []).map((b) => ({
+    slug: typeof b === "string" ? b : b?.slug,
+    name: String(typeof b === "string" ? b : b?.name || "").toLowerCase(),
+  })).filter((b) => b.slug);
+  // The whole name first, then any distinctive word of it: "本丸の予約" names
+  // Hotel 本丸. A word is distinctive when it is not something like "the" —
+  // four letters in Latin script, two characters in any other.
+  for (const b of businesses) {
+    if (lower.includes(String(b.slug).toLowerCase()) || (b.name && lower.includes(b.name))) return b.slug;
+  }
+  for (const b of businesses) {
+    const words = b.name.split(/[^\p{L}\p{N}]+/u).filter((w) => (/^[a-z0-9]+$/.test(w) ? w.length >= 4 : w.length >= 2));
+    if (words.some((w) => lower.includes(w))) return b.slug;
+  }
+  return null;
+}
+
+function organizationContext(organization) {
+  const nodes = (organization?.nodes || [])
+    .map((node) => `- ${node.id}: ${node.label} (${node.kind})`)
+    .join("\n");
+  const edges = (organization?.edges || [])
+    .map((edge) => {
+      const from =
+        organization.nodes?.find((node) => node.id === edge.fromID)?.label ||
+        edge.fromID;
+      const to =
+        organization.nodes?.find((node) => node.id === edge.toID)?.label ||
+        edge.toID;
+      return `- ${from} ${edge.kind} ${to}`;
+    })
+    .join("\n");
+  return `Nodes:\n${nodes}\nEdges:\n${edges}`;
+}
+
+function userNameFor(userID) {
+  if (userID === "user-toru") return "Toru";
+  if (userID === "user-tanaka") return "田中";
+  if (userID === "user-yui") return "結衣";
+  if (userID === "user-alex") return "Alex";
+  // Accounts carry a prefixed id — "email:kinjal@test.com" as the user id,
+  // "u:kinjal@test.com" as the relay login — and neither belongs on a card.
+  // Only the first was stripped, so every card routed by the fallback to a
+  // login was titled "Update for u:someone@example.com", and the colon in it
+  // then split the context into a fact chip labelled "From u".
+  const withoutPrefix = String(userID).replace(/^(u:|email:)/, "");
+  if (withoutPrefix.includes("@")) {
+    const local = withoutPrefix.split("@")[0];
+    return local.charAt(0).toUpperCase() + local.slice(1);
+  }
+  return withoutPrefix;
+}
+
+/// The name that goes on a card, whoever the client says the sender is.
+///
+/// The clients send `sender.name` from whatever they have to hand, and what
+/// they have to hand at compose time is the login — so a card could be
+/// captioned "From u:someone@example.com", and the colon in it then split the
+/// context into a fact chip labelled "From u". A display name is the card's
+/// business, not the caller's: normalise it here rather than trusting six
+/// call sites to.
+/// A name that is really an id — its own login, or an address — is no name.
+function looksLikeAnID(name, id) {
+  const value = String(name || "").trim();
+  return !value || value === id || /^(u:|email:)/.test(value) || value.includes("@");
+}
+
+function senderForCard(sender, organization) {
+  const raw = sender || {};
+  const id = raw.id || raw.name || "";
+  // The membership row first. The org is built here from that table rather
+  // than from the client, so it holds the name this person actually goes by —
+  // and every client derives a stand-in from the account id when it has none
+  // to hand, which is how "E2e-1788841995270" ended up on a card belonging to
+  // someone the server knew as "E2E Person". A derived name does not always
+  // look like an id — iOS turns "u:mai@tiktok-for-work.jp" into "mai" — so it cannot
+  // be caught after the fact: the row simply wins whenever it holds anything
+  // better than an id itself.
+  const known = displayNameOf(organization, id);
+  if (!looksLikeAnID(known, id)) return { ...raw, name: known };
+  if (!looksLikeAnID(raw.name, id)) return { ...raw, name: String(raw.name).trim() };
+  return { ...raw, name: userNameFor(id) };
+}
+
+function parseToolArguments(raw) {
+  if (!raw) return {};
+  if (typeof raw === "object") return raw;
+  return JSON.parse(raw);
+}
+
+/**
+ * @param {import('openai').ChatCompletionMessageToolCall[] | undefined} toolCalls
+ * @param {string} senderName
+ */
+export function materializeFromToolCalls(toolCalls, senderName) {
+  /** @type {DecisionCardArgs | null} */
+  let card = null;
+  /** @type {{ name: string, label: string, detail: string }[]} */
+  const steps = [];
+  let priorityOverride = null;
+  const contextExtras = [];
+
+  for (const call of toolCalls || []) {
+    const name = call.function?.name;
+    const args = parseToolArguments(call.function?.arguments);
+
+    if (name === "create_decision_card") {
+      card = args;
+      steps.push({
+        name: "create_decision_card",
+        label: "Route decision",
+        detail: `${userNameFor(args.recipientUserID)} · ${args.cardType}`,
+      });
+    }
+
+    if (name === "set_priority") {
+      priorityOverride = args.level;
+      steps.push({
+        name: "set_priority",
+        label: "Set priority",
+        detail: `${args.level}${args.reason ? ` — ${args.reason}` : ""}`,
+      });
+    }
+
+    if (name === "add_context") {
+      contextExtras.push(`${args.key}: ${args.value}`);
+      steps.push({
+        name: "add_context",
+        label: "Add context",
+        detail: `${args.key}: ${args.value}`,
+      });
+    }
+  }
+
+  if (!card) {
+    throw new Error("AI did not call create_decision_card.");
+  }
+
+  if (priorityOverride) {
+    card.priority = priorityOverride;
+  }
+
+  if (contextExtras.length > 0) {
+    card.context = [card.context, ...contextExtras].filter(Boolean).join(" · ");
+  }
+
+  const recipientName = userNameFor(card.recipientUserID);
+  card.agentRoute = `${senderName}'s AI → ${recipientName}'s AI`;
+
+  return { card, toolCalls: steps };
+}
+
+function resolveRecipient(text, senderID, organization) {
+  const target = resolveRecipientTarget(text, senderID, organization);
+  return {
+    recipientUserID: target.recipientUserID,
+    namedInInstruction: target.forceOverride,
+    routingReason: target.routingReason,
+  };
+}
+
+function routingReasonFor({
+  recipientUserID,
+  senderID,
+  namedInInstruction,
+  organization,
+  routingReason,
+}) {
+  if (routingReason) return routingReason;
+  if (namedInInstruction) return "Named in your instruction";
+  const managerEdge = organization?.edges?.find(
+    (item) => item.toID === senderID && item.kind === "manages"
+  );
+  if (managerEdge?.fromID === recipientUserID) {
+    return `You are ${userNameFor(senderID)}'s manager`;
+  }
+  if (recipientUserID !== senderID) {
+    return "Best match for this decision in org graph";
+  }
+  return "Routed to you";
+}
+
+function isEchoOfInput(summary, input) {
+  const normalize = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  const a = normalize(summary);
+  const b = normalize(input);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.length >= b.length * 0.75 && b.includes(a)) return true;
+  if (b.length >= a.length * 0.75 && a.includes(b)) return true;
+  return false;
+}
+
+function summarizeInstruction(text, { sender, cardType, recipientUserID, organization, readerLanguage }) {
+  let cleaned = String(text || "").trim();
+  cleaned = cleaned.replace(
+    /^(please\s+)?(tell|ask|notify|send|ping|remind)\s+(alice|bob|carol|dana|manager)\s+(to\s+)?/i,
+    ""
+  );
+  cleaned = cleaned.replace(/^(can you|could you|hey|hi|yo)\s+/i, "");
+  cleaned = cleaned.replace(
+    /^(i need|we need)\s+(alice|bob|carol|dana|manager)\s+to\s+/i,
+    ""
+  );
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+  if (cleaned.length > 0) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+
+  const recipientName = displayNameOf(organization, recipientUserID);
+  // On your own — a workspace of one, or a note you routed to yourself — the
+  // card is talking to the person who wrote it. "Update for Alice · From Alice
+  // · decision routed to Alice" is three ways of saying nothing.
+  const toSelf = String(recipientUserID) === String(sender.id);
+  const say = (key, vars) => cardText(readerLanguage, key, vars);
+  const titles = {
+    approval: say("Approval needed"),
+    delegation: toSelf ? say("Your task") : say("Task for {name}", { name: recipientName }),
+    revision: say("Revision requested"),
+    // The person's own words, not ours — so they are not translated, only cut.
+    task: taskTitle(cleaned) || say("New task"),
+    notification: toSelf ? say("Your note") : say("Update for {name}", { name: recipientName }),
+  };
+
+  const summary =
+    cleaned.length > 180 ? `${cleaned.slice(0, 177).trim()}…` : cleaned;
+
+  return {
+    title: titles[cardType] || say("Decision needed"),
+    summary: summary || say("Decision requested."),
+    context: toSelf
+      ? say("From your own AI")
+      : say("From {sender} · decision routed to {recipient}", {
+          sender: sender.name,
+          recipient: recipientName,
+        }),
+  };
+}
+
+/// A title out of the first sentence, cut at a word and never mid-phrase.
+///
+/// Six words flat produced "Ask the engineer to fix the" — a title that stops
+/// on a preposition and reads like a truncation bug. Take a whole short
+/// instruction as it is, and otherwise stop at the last word that fits and on
+/// a word that can end a line.
+function taskTitle(text) {
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  const firstSentence = clean.split(/(?<=[.!?。！？])\s/)[0] || clean;
+  if (firstSentence.length <= 52) return firstSentence.replace(/[.。]$/, "");
+  const DANGLING = new Set([
+    "a", "an", "the", "to", "of", "for", "on", "in", "at", "by", "with",
+    "and", "or", "but", "before", "after", "from", "into", "about",
+  ]);
+  const words = firstSentence.split(" ");
+  const kept = [];
+  for (const word of words) {
+    if ([...kept, word].join(" ").length > 52) break;
+    kept.push(word);
+  }
+  while (kept.length > 1 && DANGLING.has(kept[kept.length - 1].toLowerCase())) kept.pop();
+  return `${kept.join(" ")}…`;
+}
+
+function applyRoutingGuard(routing, sender, originalText, organization = null) {
+  const target = resolveRecipientTarget(originalText, sender.id, organization);
+  if (!target.forceOverride || target.recipientUserID === routing.recipientUserID) {
+    return routing;
+  }
+
+  const recipientName = displayNameOf(organization, target.recipientUserID);
+  return {
+    ...routing,
+    recipientUserID: target.recipientUserID,
+    routingReason: target.routingReason,
+    agentRoute: `${sender.name}'s AI → ${recipientName}'s AI`,
+    toolCalls: [
+      ...(routing.toolCalls || []),
+      {
+        name: "route_correction",
+        label: "Auto-routed by team/role",
+        detail: recipientName,
+      },
+    ],
+  };
+}
+
+function validateRouting(routingJSON, sender, originalText, toolCalls = [], organization = null, readerLanguage = undefined) {
+  const members = memberIdsOf(organization);
+  const allowedRecipients = new Set(members.length ? members : DEMO_USER_IDS);
+  const allowedTypes = new Set([
+    "approval",
+    "delegation",
+    "notification",
+    "task",
+    "revision",
+  ]);
+  const allowedPriorities = new Set(["low", "medium", "high", "urgent"]);
+
+  const recipientUserID = routingJSON.recipientUserID;
+  const cardType = routingJSON.cardType;
+  let title = routingJSON.title;
+  let summary = routingJSON.summary;
+  let context = routingJSON.context;
+  const priority = routingJSON.priority;
+
+  if (!allowedRecipients.has(recipientUserID)) {
+    throw new Error("AI picked an invalid recipient.");
+  }
+  if (!allowedTypes.has(cardType)) {
+    throw new Error("AI returned an invalid card type.");
+  }
+  if (!allowedPriorities.has(priority)) {
+    throw new Error("AI returned an invalid priority.");
+  }
+  if (!title || !summary || !context) {
+    throw new Error("AI returned incomplete routing fields.");
+  }
+
+  if (isEchoOfInput(summary, originalText) || isEchoOfInput(title, originalText)) {
+    const rewritten = summarizeInstruction(originalText, {
+      sender,
+      cardType,
+      recipientUserID,
+      organization,
+      readerLanguage,
+    });
+    title = rewritten.title;
+    summary = rewritten.summary;
+    context = rewritten.context;
+  }
+
+  const recipientName = displayNameOf(organization, recipientUserID);
+  const agentRoute =
+    routingJSON.agentRoute || `${sender.name}'s AI → ${recipientName}'s AI`;
+  const routingReason =
+    routingJSON.routingReason || "Best match for this decision in org graph";
+
+  return applyRoutingGuard(
+    {
+      recipientUserID,
+      cardType,
+      title,
+      summary,
+      context,
+      priority,
+      agentRoute,
+      routingReason,
+      labels: routingJSON.labels || [],
+      // A suggestion, never a decision. Dropped whole unless the model named
+      // one of the three actions a person can actually take from the card.
+      recommendation: ["approve", "decline", "revise"].includes(routingJSON.recommendation)
+        ? {
+            action: routingJSON.recommendation,
+            reason: typeof routingJSON.recommendationReason === "string"
+              ? routingJSON.recommendationReason.slice(0, 600)
+              : "",
+          }
+        : undefined,
+      // The model's pick, when it is one of ours; the instruction's own
+      // words otherwise. Never a business the model made up.
+      // An existing business by slug; the instruction's own words; or the
+      // new name the model proposed, which the relay turns into a business.
+      // Never a slug the model made up.
+      business: businessSlugsOf(organization).includes(routingJSON.business)
+        ? routingJSON.business
+        : (matchBusiness(originalText, organization)
+          || (typeof routingJSON.newBusiness === "string" && routingJSON.newBusiness.trim().slice(0, 40)) || null),
+      toolCalls,
+    },
+    sender,
+    originalText,
+    organization
+  );
+}
+
+export function routeInstructionLocally({
+  text,
+  sender,
+  organization,
+  priorityOverride,
+  readerLanguage,
+}) {
+  const lower = String(text || "").toLowerCase();
+  const { recipientUserID, namedInInstruction, routingReason } = resolveRecipient(
+    text,
+    sender.id,
+    organization
+  );
+
+  let cardType = "notification";
+  if (lower.includes("approve") || lower.includes("approval")) cardType = "approval";
+  else if (lower.includes("delegate") || lower.includes("assign")) cardType = "delegation";
+  else if (lower.includes("revise") || lower.includes("feedback")) cardType = "revision";
+  else if (lower.includes("task") || lower.includes("fix") || lower.includes("build")) {
+    cardType = "task";
+  }
+
+  const rewritten = summarizeInstruction(text, {
+    sender,
+    cardType,
+    recipientUserID,
+    organization,
+    readerLanguage,
+  });
+  const recipientName = displayNameOf(organization, recipientUserID);
+  const priority =
+    priorityOverride && ["low", "medium", "high", "urgent"].includes(priorityOverride)
+      ? priorityOverride
+      : lower.includes("urgent")
+        ? "urgent"
+        : "high";
+
+  return validateRouting(
+    {
+      recipientUserID,
+      cardType,
+      title: rewritten.title,
+      summary: rewritten.summary,
+      context: rewritten.context,
+      priority,
+      agentRoute: `${sender.name}'s AI → ${recipientName}'s AI`,
+      routingReason: routingReasonFor({
+        recipientUserID,
+        senderID: sender.id,
+        namedInInstruction,
+        organization,
+        routingReason,
+      }),
+      labels: [],
+    },
+    sender,
+    text,
+    [
+      {
+        name: "create_decision_card",
+        label: "Local fallback route",
+        detail: `${recipientName} · ${cardType}`,
+      },
+    ],
+    organization,
+    readerLanguage
+  );
+}
+
+function parseRoutingJSON(content) {
+  const trimmed = String(content || "").trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced ? fenced[1].trim() : trimmed;
+  return JSON.parse(candidate);
+}
+
+async function routeInstructionWithOpenRouter({
+  text,
+  sender,
+  organization,
+  priorityOverride,
+  openRouter,
+  readerLanguage,
+  senderContext,
+  attempt = 0,
+  // Shared with the caller (and with this function's own retry) so it can tell
+  // "the model answered" from "the call never landed" even when both end up
+  // throwing. Only the first is billable.
+  call = { answered: false },
+}) {
+  const userPrompt = buildUserPrompt({ text, sender, organization, readerLanguage, senderContext });
+
+  // OpenAI and OpenRouter speak the same chat/completions dialect, tools
+  // included, so the provider is just an endpoint and a couple of headers.
+  // OpenRouter wants attribution headers; OpenAI ignores them, so they are only
+  // sent when they exist.
+  const endpoint = openRouter.endpoint || "https://openrouter.ai/api/v1/chat/completions";
+  const headers = {
+    Authorization: `Bearer ${openRouter.apiKey}`,
+    "Content-Type": "application/json",
+  };
+  if (openRouter.appUrl) headers["HTTP-Referer"] = openRouter.appUrl;
+  if (openRouter.appName) headers["X-Title"] = openRouter.appName;
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: openRouter.model,
+      temperature: 0.2,
+      max_tokens: 512,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      tools: buildAgentTools(organization),
+      tool_choice: {
+        type: "function",
+        function: { name: "create_decision_card" },
+      },
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    const message = data?.error?.message || `${openRouter.providerName || "LLM"} request failed.`;
+    throw new Error(message);
+  }
+  // Past this line the provider has answered and billed us, whatever we go on
+  // to make of the answer — including rejecting it in validateRouting below.
+  call.answered = true;
+
+  const message = data?.choices?.[0]?.message;
+  const toolCalls = message?.tool_calls;
+
+  if (toolCalls?.length) {
+    const { card, toolCalls: steps } = materializeFromToolCalls(toolCalls, sender.name);
+    if (priorityOverride && ["low", "medium", "high", "urgent"].includes(priorityOverride)) {
+      card.priority = priorityOverride;
+      steps.push({
+        name: "set_priority",
+        label: "Priority override",
+        detail: priorityOverride,
+      });
+    }
+    return validateRouting(card, sender, text, steps, organization, readerLanguage);
+  }
+
+  const content = message?.content;
+  if (!content) {
+    if (attempt < 1) {
+      return routeInstructionWithOpenRouter({
+        text,
+        sender,
+        organization,
+        priorityOverride,
+        openRouter,
+        readerLanguage,
+        senderContext,
+        attempt: attempt + 1,
+        call,
+      });
+    }
+    console.warn("OpenRouter returned empty routing response; using local fallback.");
+    return routeInstructionLocally({ text, sender, organization, priorityOverride, readerLanguage });
+  }
+
+  const routingJSON = parseRoutingJSON(content);
+  const validated = validateRouting(
+    routingJSON,
+    sender,
+    text,
+    [
+      {
+        name: "create_decision_card",
+        label: "Route decision",
+        detail: `${displayNameOf(organization, routingJSON.recipientUserID)} · ${routingJSON.cardType}`,
+      },
+    ],
+    organization,
+    readerLanguage
+  );
+  if (priorityOverride) {
+    validated.priority = priorityOverride;
+  }
+  return validated;
+}
+
+export async function routeInstruction({
+  text,
+  sender: rawSender,
+  organization,
+  priorityOverride,
+  openRouter,
+  readerLanguage,
+  senderContext,
+}) {
+  const sender = senderForCard(rawSender, organization);
+  if (openRouter?.apiKey) {
+    // `aiCalled` is for the meter, not for clients: /ai/route strips it before
+    // responding, so the wire format is unchanged. routedBy cannot stand in for
+    // it — a model that answers with an invalid recipient is rejected below and
+    // reported as "fallback", but we were still billed for the answer.
+    const call = { answered: false };
+    try {
+      const routed = await routeInstructionWithOpenRouter({
+        text,
+        sender,
+        organization,
+        priorityOverride,
+        openRouter,
+        readerLanguage,
+        senderContext,
+        call,
+      });
+      return { ...routed, routedBy: openRouter.providerName || "llm", aiCalled: call.answered };
+    } catch (error) {
+      console.warn("AI routing failed, using local fallback:", error.message);
+      return {
+        ...routeInstructionLocally({ text, sender, organization, priorityOverride, readerLanguage }),
+        routedBy: "fallback",
+        routingError: error.message,
+        aiCalled: call.answered,
+      };
+    }
+  }
+
+  return {
+    ...routeInstructionLocally({ text, sender, organization, priorityOverride, readerLanguage }),
+    routedBy: "fallback",
+    aiCalled: false,
+  };
+}
+
+export { SYSTEM_PROMPT, userNameFor };

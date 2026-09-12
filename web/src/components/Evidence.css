@@ -1,0 +1,115 @@
+/* The AI showing its work. Violet is the one AI marker on the screen, so the
+   header wears it and nothing else does; the results are plain chips. */
+.evidence {
+  margin-top: 16px;
+  border: 1px solid #e6e0ff;
+  background: #faf9ff;
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.ev-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ev-title { font-size: 13px; color: #45454f; display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.ev-status { font-size: 11px; color: #8b8b93; display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.ev-status.done { color: #1a8f4a; }
+.ev-status.failed { color: #d64545; }
+.ev-dot { width: 7px; height: 7px; border-radius: 50%; background: #6647f0; animation: ev-pulse 1s ease-in-out infinite; }
+@keyframes ev-pulse { 0%, 100% { opacity: .25; transform: scale(.8) } 50% { opacity: 1; transform: scale(1.15) } }
+
+.ev-layers { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.ev-layer {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; letter-spacing: .02em; color: #a0a0aa;
+  border: 1px solid #ececf0; border-radius: 9999px; padding: 4px 10px; background: #fff;
+  transition: color 200ms, border-color 200ms;
+}
+.ev-layer i { width: 8px; height: 8px; border-radius: 2px; background: #d9d9de; }
+.ev-layer.daytona i { border-radius: 2px; }
+.ev-layer.neo4j i { border-radius: 50%; }
+.ev-layer.on { color: #101014; border-color: #d9d2ff; }
+.ev-layer.daytona.on i { background: #0ea5e9; }
+.ev-layer.neo4j.on i { background: #018bff; }
+
+.ev-timeline { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ev-step { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.35; animation: ev-in 220ms ease-out; }
+@keyframes ev-in { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+.ev-mark {
+  flex: none; width: 16px; height: 16px; border-radius: 50%; margin-top: 1px;
+  display: grid; place-items: center; font-size: 10px;
+  border: 1px solid #d9d9de; color: #1a8f4a; background: #fff;
+}
+.ev-step.done .ev-mark { border-color: #bfe8cf; background: #eefaf2; }
+.ev-step.failed .ev-mark { color: #d64545; border-color: #f3c2c2; background: #fff3f3; }
+.ev-step.running .ev-mark { border-color: #6647f0; border-top-color: transparent; animation: ev-spin 800ms linear infinite; }
+@keyframes ev-spin { to { transform: rotate(360deg) } }
+.ev-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.ev-label { color: #101014; }
+.ev-detail { color: #8b8b93; font-size: 11.5px; overflow-wrap: anywhere; }
+.ev-tag { flex: none; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: #a0a0aa; padding-top: 3px; }
+.ev-tag.daytona { color: #0284c7; }
+.ev-tag.neo4j { color: #018bff; }
+.ev-tag.github { color: #45454f; }
+
+.ev-results { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.ev-badge {
+  border: 1px solid #ececf0; background: #fff; border-radius: 9999px;
+  padding: 5px 10px; font-size: 12px; color: #101014; display: inline-flex; gap: 5px; align-items: baseline;
+}
+.ev-badge em { font-style: normal; color: #8b8b93; font-variant-numeric: tabular-nums; }
+.ev-badge.tests.passed { border-color: #bfe8cf; background: #eefaf2; color: #146c38; font-weight: 600; }
+.ev-badge.tests.failed, .ev-badge.failed { border-color: #f3c2c2; background: #fff3f3; color: #b33a3a; font-weight: 600; }
+.ev-badge.tests.error { border-color: #f5dfb5; background: #fff8eb; color: #8a5a00; }
+.ev-badge.preview { background: #101014; color: #fff; border-color: #101014; text-decoration: none; font-weight: 600; }
+.ev-badge.mono { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #6b6b75; }
+.ev-edit { flex-basis: 100%; margin: 4px 0 0; font-size: 12px; color: #6b6b75; line-height: 1.45; }
+
+.ev-graph { margin-top: 12px; padding-top: 12px; border-top: 1px solid #ece8ff; }
+.ev-summary { margin: 0; font-size: 13px; line-height: 1.5; color: #101014; }
+.ev-svg { width: 100%; height: auto; margin-top: 6px; display: block; }
+.ev-edge { stroke: #d9d2ff; stroke-width: 1; }
+.ev-edge.conflict { stroke: #f3c2c2; stroke-dasharray: 3 3; }
+.ev-node circle { fill: #fff; stroke: #6647f0; stroke-width: 1.5; }
+.ev-node.decision circle { fill: #6647f0; }
+.ev-node.business circle { stroke: #018bff; }
+.ev-node.repo circle { stroke: #45454f; }
+.ev-node.conflict circle { stroke: #d64545; }
+.ev-node.pr circle { fill: #101014; stroke: #101014; }
+.ev-node text { font-size: 10px; fill: #45454f; }
+.ev-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.ev-list li { display: flex; align-items: baseline; gap: 8px; font-size: 12px; min-width: 0; }
+.ev-action {
+  flex: none; font-size: 9px; letter-spacing: .06em; text-transform: uppercase;
+  border-radius: 4px; padding: 2px 5px; color: #45454f; background: #f1f1f4;
+}
+.ev-action.approve { color: #146c38; background: #eefaf2; }
+.ev-action.decline { color: #b33a3a; background: #fff3f3; }
+.ev-action.warn { color: #8a5a00; background: #fff8eb; }
+.ev-rel-title { color: #101014; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev-rel-meta { flex: none; color: #a0a0aa; font-size: 11px; }
+
+.ev-exec { margin-top: 12px; }
+.ev-pr {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #101014; color: #fff; text-decoration: none;
+  border-radius: 9999px; padding: 9px 16px; font-size: 13px; font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  .evidence { background: #17142a; border-color: #2f2a52; }
+  .ev-title, .ev-label, .ev-summary, .ev-rel-title, .ev-badge { color: #ededef; }
+  .ev-layer, .ev-badge, .ev-mark { background: #151518; border-color: #303038; }
+  .ev-layer.on { color: #ededef; border-color: #4a3f8f; }
+  .ev-step.done .ev-mark { background: #12271a; border-color: #1f5a34; }
+  .ev-badge.tests.passed { background: #12271a; border-color: #1f5a34; color: #7ee2a3; }
+  .ev-badge.tests.failed, .ev-badge.failed { background: #2a1414; border-color: #5a1f1f; color: #f08a8a; }
+  .ev-graph { border-top-color: #2f2a52; }
+  .ev-node circle { fill: #151518; }
+  .ev-node text { fill: #c9c9d1; }
+  .ev-action { background: #26262b; color: #c9c9d1; }
+  .ev-pr { background: #ededef; color: #0b0b0d; }
+}
+
+.ev-fold {
+  margin-top: 10px; width: 100%; text-align: left; cursor: pointer;
+  border: 1px dashed #d9d2ff; background: transparent; border-radius: 10px;
+  padding: 7px 10px; font: inherit; font-size: 12px; color: #6b6b75;
+}
