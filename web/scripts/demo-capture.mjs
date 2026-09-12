@@ -33,7 +33,7 @@ await shot('03-evidence-running')
 await wait(4800)                       // tests ran
 await shot('04-evidence-done')
 await page.getByRole('button', { name: /decision graph/i }).click()
-await wait(2600)                       // the layout settles
+await wait(4200)                       // the layout settles and fits
 await shot('04a-graph')
 await page.locator('.node.kind-Decision').first().dispatchEvent('pointerdown')
 await page.locator('.node.kind-Decision').first().dispatchEvent('pointerup')

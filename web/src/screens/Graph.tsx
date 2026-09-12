@@ -66,9 +66,22 @@ export const Graph: React.FC<Props> = ({ state, focusCardId, onOpenCard, onClose
       .force('collide', forceCollide<SimNode>().radius((d) => R[d.kind] + 14))
       .alpha(sim.current ? 0.5 : 1)
       .on('tick', () => setTick((k) => k + 1))
+      .on('end', () => { if (!focusCardId) fit() })
     sim.current = s
     return () => { s.stop() }
   }, [nodes, edges])
+
+  // Fit every node into the canvas, with a margin, once the layout has settled.
+  const fit = () => {
+    const ns = [...simNodes.current.values()]
+    if (!ns.length) return
+    const { w, h } = size.current
+    const xs = ns.map((n) => n.x), ys = ns.map((n) => n.y)
+    const minX = Math.min(...xs) - 60, maxX = Math.max(...xs) + 60
+    const minY = Math.min(...ys) - 60, maxY = Math.max(...ys) + 60
+    const k = Math.min(1.4, Math.max(0.35, Math.min(w / (maxX - minX), h / (maxY - minY))))
+    setView({ k, x: (w - (minX + maxX) * k) / 2, y: (h - (minY + maxY) * k) / 2 })
+  }
 
   // Centre on the focused decision once it has a position.
   useEffect(() => {
