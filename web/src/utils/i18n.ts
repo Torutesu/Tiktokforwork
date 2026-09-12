@@ -17,6 +17,14 @@ type Dict = Record<string, string>
 const ja: Dict = {
   // The AI showing its work
   'Your AI checked this': 'あなたのAIが確認済み',
+  'Decision graph': '判断グラフ',
+  'Neo4j · live': 'Neo4j · ライブ',
+  'Neo4j mirror': 'Neo4j ミラー',
+  nodes: 'ノード',
+  relationships: 'リレーション',
+  'Nothing in the graph yet. The first decision will draw it.': 'まだグラフは空です。最初の判断が描きます。',
+  'Open the card': 'カードを開く',
+  'Explore in the graph': 'グラフで見る',
   '{n} steps': '{n} ステップ',
   show: '表示',
   '1 file': '1 ファイル',

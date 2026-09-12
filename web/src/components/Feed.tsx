@@ -13,6 +13,7 @@ interface Props {
   focusCardId: string | null
   onDecide: (cardId: string, action: string, options?: { replyText?: string }) => void
   onAsk: (text: string, card: DecisionCard) => void
+  onOpenGraph?: (cardId: string) => void
 }
 
 const SWIPE_THRESHOLD = 96
@@ -63,7 +64,7 @@ function segments(context: string): Array<{ label: string; detail: string }> {
 /// One decision per screen. Scroll for the next; swipe right to approve, left
 /// to decline; or use the two buttons. The keyboard works too: ↑ ↓ to move,
 /// A to approve, D to decline.
-export const Feed: React.FC<Props> = ({ cards, userId, businesses, focusCardId, onDecide, onAsk }) => {
+export const Feed: React.FC<Props> = ({ cards, userId, businesses, focusCardId, onDecide, onAsk, onOpenGraph }) => {
   const t = useT()
   const container = useRef<HTMLDivElement>(null)
   const [index, setIndex] = useState(0)
@@ -124,6 +125,7 @@ export const Feed: React.FC<Props> = ({ cards, userId, businesses, focusCardId, 
           businessName={nameOf(card.business)}
           onDecide={onDecide}
           onAsk={onAsk}
+          onOpenGraph={onOpenGraph}
         />
       ))}
       {cards.length > 1 && (
@@ -139,9 +141,10 @@ interface PageProps {
   businessName: string
   onDecide: Props['onDecide']
   onAsk: Props['onAsk']
+  onOpenGraph?: Props['onOpenGraph']
 }
 
-const FeedPage: React.FC<PageProps> = ({ card, businessName, onDecide, onAsk }) => {
+const FeedPage: React.FC<PageProps> = ({ card, businessName, onDecide, onAsk, onOpenGraph }) => {
   const t = useT()
   const [dx, setDx] = useState(0)
   const [ask, setAsk] = useState('')
@@ -208,7 +211,7 @@ const FeedPage: React.FC<PageProps> = ({ card, businessName, onDecide, onAsk }) 
             </div>
           )}
 
-          <Evidence card={card} />
+          <Evidence card={card} onOpenGraph={onOpenGraph} />
 
           {context && segments(context).length > 0 && (
             <ul className="card-context">

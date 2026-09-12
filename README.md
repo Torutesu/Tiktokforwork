@@ -1,106 +1,206 @@
 # TikTok for Work
 
-An AI-native decision feed for teams. People talk only to their own AI. The AI
-routes each request across the organization and hands it to the right person as
-a **Decision Card** in a vertical, one-card-at-a-time feed. Swipe to decide. The
-outcome syncs to GitHub.
+**An AI-native communication OS for you, your AI agents, and your team.**
 
-This repository adds the part that makes a decision worth trusting: **every card
-arrives with evidence, and an approval executes itself.**
+Slack and Notion were great. They were built for humans typing to humans. Work
+now happens between people *and* their AI agents, and the tools have not
+caught up: an agent cannot sit in a channel, a decision cannot be swiped, and
+nothing that gets approved starts moving on its own.
+
+TikTok for Work starts over. You talk only to your own AI. It routes what you
+need across the organization and hands it to the right person as a
+**Decision Card** in a vertical, one-at-a-time feed. Swipe to decide. The
+outcome lands in GitHub, in the decision graph, and in the requester's feed.
 
 > Approve it, and it is already done.
 
-## What a card carries
+Every card arrives with evidence: **your AI has already tried the change in
+its own cloud computer and asked the organization's graph what happened last
+time.** Every approval executes itself.
+
+<p align="center">
+  <img src="docs/media/04-evidence-done.png" width="260" alt="A Decision Card with evidence: tests passed, files changed, forked in 184 ms, open the preview">
+  <img src="docs/media/04a-graph.png" width="260" alt="The decision graph: people, their AIs and machines, businesses, decisions, repositories">
+  <img src="docs/media/04b-fleet.png" width="260" alt="Your team's AIs: one desk sandbox per agent, one sandbox per decision being checked">
+</p>
+
+*Demo video: [`docs/media/demo.webm`](docs/media/demo.webm) (35 s). Run it
+yourself with `?demo` on the web client, no backend needed.*
+
+## What is on a card
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│ APPROVAL · HOTEL SAKURA · high                           │
-│                                                          │
-│ Show tax-inclusive prices on the booking site            │
-│                                                          │
-│ Requested by Toru · owner                                │
-│                                                          │
-│ ✅ 14 tests passed · 2 files changed (+9 −3)             │
-│ Verified in a Daytona sandbox in 41s                     │
-│ Last similar decision: approved by you on Aug 30.        │
-│ Yui has an open card touching the same repository.       │
-│                                                          │
-│         ✕ decline        ✎ revise        ✓ approve       │
-└──────────────────────────────────────────────────────────┘
+APPROVAL · HOTEL SAKURA · high
+Show tax-inclusive prices on the booking site
+Requested by Toru · owner
+
+✦ Your AI checked this                          Done in 6.4 s
+  [■ Daytona sandbox] [● Neo4j graph]
+  ✓ Asked the decision graph          3 precedents · 1 collision     NEO4J
+  ✓ Forked my desk into a fresh sandbox   184 ms                     DAYTONA
+  ✓ Applied 2 edits                   src/pricing.ts, PriceTag.tsx   AI
+  ✓ Ran the test suite                npm test · 14 passed, 0 failed DAYTONA
+  ✓ Started a preview of the change                                  DAYTONA
+  ✅ 14 tests passed · 2 files +9 −3 · Forked in 184 ms · ▶ Open the preview
+  You approved 2 of the last 3 decisions about Hotel Sakura, most recently
+  12 days ago. Yui has an open card touching the same repository.
+
+        ✕ decline                 ✓ approve
 ```
 
-Before the recipient opens the card, their AI has already:
+Swipe right: the same sandbox pushes its tested branch, a pull request opens,
+the decision and the PR are written to the graph, and the requester gets a
+card back. Swipe left: the sandbox is deleted and the decision is recorded.
+Either way, the next card about this business already knows.
 
-1. **Tried it.** A fresh, isolated **Daytona** sandbox clones the repository,
-   applies the change, runs the tests, and reports the diff and the results.
-2. **Remembered.** **Neo4j** holds the graph of people, businesses, decisions,
-   repositories and pull requests. The AI asks it what was decided before, by
-   whom, and whose open work this collides with, and writes that on the card.
-When the recipient swipes right, the same sandbox pushes its branch, opens a
-pull request, records the decision and the PR in the graph, and sends a result
-card back to whoever asked.
+## Every agent has its own computer
+
+This is the part Daytona makes possible.
+
+```
+                 Person ──OWNS──▶ Agent ──RUNS_ON──▶ Desk (persistent sandbox)
+                                                        │ fork, ~200 ms
+                                          Sandbox ◀─────┘   one per decision
+                                             │  clone already there, deps already installed
+                                             ├─ apply the model's edits
+                                             ├─ npm test
+                                             ├─ serve a preview  → link on the card
+                                             └─ approve → git push → PR   /  else → delete
+```
+
+| Daytona feature | What it does here | Where you see it |
+|---|---|---|
+| Persistent sandbox per agent (`desk-<user>`, never auto-stopped) | The agent's own machine. The runner itself is deployed into it (`npm run deploy:desk`) | Fleet screen: **DESK desk-tanaka · started** |
+| `daytona.fork(desk)` | One sandbox per decision, with the checkout and `node_modules` already in place. A dry-run is edit + test, not clone + install | "Forked my desk into a fresh sandbox · 184 ms" |
+| `process.executeCommand`, `fs.uploadFile` | Apply the proposed edits, run the tests, read the diff stats | "Applied 2 edits", "14 passed, 0 failed" |
+| `getPreviewLink(port)` | The changed app, served from the fork, one tap from the card | **▶ Open the preview** |
+| Labels + `list()` | Which agent is checking which decision on which machine | Fleet screen counts, graph `Sandbox` nodes |
+| Kept alive until decided | Approve pushes the exact branch that was tested; anything else deletes the fork | "Pushed the tested branch" → "Pull request #12 is open" |
+
+Why not CI or a laptop: cards are created continuously and in parallel. A
+queue would put the evidence *after* the decision. Sub-second, disposable,
+forkable machines are what make "the evidence is there before you look" a
+user experience rather than a promise.
+
+## Decisions become context for the next decision
+
+This is the part Neo4j makes possible.
+
+```
+(:Person)-[:OWNS]->(:Agent)-[:RUNS_ON]->(:Desk)<-[:FORKED_FROM]-(:Sandbox)-[:CHECKED]->(:Decision)
+(:Person)-[:REQUESTED]->(:Decision)-[:ASSIGNED_TO]->(:Person)
+(:Decision)-[:DECIDED_BY {action, at}]->(:Person)
+(:Decision)-[:ABOUT]->(:Business)     (:Decision)-[:TOUCHES]->(:Repo)     (:Decision)-[:PRODUCED]->(:PR)
+```
+
+Two queries run for every card, in milliseconds, and their answer is written
+on it in one sentence:
+
+```cypher
+// Precedent: what did we decide about this business, and who decided?
+MATCH (d:Decision {id:$id})-[:ABOUT]->(b)<-[:ABOUT]-(p:Decision)
+WHERE p.id <> d.id AND p.action IS NOT NULL
+OPTIONAL MATCH (p)-[r:DECIDED_BY]->(who)
+RETURN p.title, p.action, r.at, who.login ORDER BY r.at DESC LIMIT 5
+
+// Collision: whose open work touches the same code right now?
+MATCH (d:Decision {id:$id})-[:TOUCHES]->(r)<-[:TOUCHES]-(o:Decision)-[:ASSIGNED_TO]->(p)
+WHERE o.id <> d.id AND o.action IS NULL
+RETURN o.title, p.login
+```
+
+The **Decision graph** screen draws the org the way Neo4j holds it: people,
+their AIs and machines, businesses, decisions (ringed green or red by how
+they ended), repositories, pull requests. Drag, zoom, tap a node for its
+properties and relationships, and the Cypher that would fetch it. The agent
+publishes the live neighbourhood from Neo4j; a client with no agent running
+draws the same graph from its own cards.
 
 ## Architecture
 
 ```
-┌──────────────┐  wss (AG-UI)  ┌────────────────────────────────┐
-│ Feed clients │◄─────────────►│ Relay                          │
-│ iOS · Web    │               │ per-org state · routing · GitHub│
-└──────────────┘               └───────────────┬────────────────┘
-                                               │ wss (AG-UI), joined as the recipient
-                                    ┌──────────▼──────────┐
-                                    │ agent/              │
-                                    │ the recipient's AI  │
-                                    └──┬───────────┬──────┘
-                                       ▼           ▼
-                                   Daytona       Neo4j
-                                   one sandbox   decision graph
-                                   per card      (Query API)
+┌──────────────┐  wss (AG-UI)  ┌──────────────────────────────────┐
+│ Feed clients │◄─────────────►│ Relay (Cloudflare Workers)       │──▶ GitHub
+│ web/ · iOS   │               │ Durable Objects · D1 · routing   │
+└──────────────┘               └───────────────┬──────────────────┘
+                                               │ wss, joined as the recipient
+                                 ┌─────────────▼─────────────┐
+                                 │ agent/  — the recipient's │   runs on its own
+                                 │ AI, one process per person│   Daytona desk
+                                 └──────┬─────────────┬──────┘
+                                        ▼             ▼
+                                    Daytona         Neo4j
+                                    desk + forks    decision graph
 ```
 
-The relay already exposes everything the agent needs: a state snapshot on join,
-JSON-patch deltas for every card, a tool-call result for every decision, and
-two writes (`card_updated` by the card's recipient, `card_created` by any
-member). The agent is a separate Node process that joins **as the recipient**,
-which is exactly what lets it enrich that person's cards and nobody else's.
-
-| Layer | Role | Why this and not something else |
-|---|---|---|
-| **Daytona** | One sandbox per card: clone, edit, test, and later push | Cards are created continuously and in parallel. Sub-second, disposable, fully isolated environments are what make "the evidence is there before you look" possible without a queue |
-| **Neo4j** | The decision graph and its GraphRAG queries | "Who approved the last three decisions about this business, what PRs came out of them, and who is working on that code right now" is a multi-hop question. Rows cannot answer it; a graph answers it in one query |
+The relay's access rule, that only a card's recipient may update it, is what
+shapes the design: the agent joins **as the recipient**, so it may enrich
+that person's cards and nobody else's, and create result cards as itself.
+Evidence is a structured `evidence` object on the card plus plain-text
+segments in `context`, so older clients still show it. The agent also
+publishes its status and the live graph as the user's context, which every
+teammate's screen receives.
 
 ## Repository layout
 
 | Path | What |
 |---|---|
-| `agent/` | The runner: relay client, Daytona sandbox lifecycle, Neo4j graph, model client, smoke scripts |
-| `docs/design.md` | Design rationale, data model, graph schema, sandbox procedure, demo walkthrough |
-| `docs/feed-evidence-badges.md` | Optional: dedicated evidence badges in the web feed |
+| `web/` | The feed: React + TypeScript, AG-UI over WebSocket. Evidence panel, decision graph, fleet screen, `?demo` mode |
+| `agent/` | The runner: relay client, Daytona desk and forks, Neo4j graph and queries, model client, smoke and deploy scripts |
+| `relay/` | Cloudflare Worker: per-org Durable Object, D1, routing, GitHub sync, notifications. 380 tests |
+| `docs/design.md` | Design rationale, data model, sandbox procedure, demo walkthrough |
+| `docs/media/` | Screenshots and the demo video |
+| `deck/` | The pitch deck |
 
-## Quick start
+## Run it
+
+**The feed, no backend (demo mode)**
 
 ```bash
-cd agent
-npm install                  # the Daytona SDK is the only dependency; Node 22+
-cp .env.example .env         # fill in the relay session, Daytona, Neo4j, the model endpoint, GitHub
-npm run smoke:daytona        # create → exec → delete
-npm run smoke:neo4j          # RETURN 1 and the schema constraints
-npm run smoke:llm            # the model endpoint answers
-npm start                    # preflight, then join the relay
+cd web && npm install && npm run dev
+# open http://localhost:3000/?demo
 ```
 
-The runner refuses to start until Daytona and Neo4j both answer. There is
-deliberately no "skip if unconfigured" path: they are the execution and
-context layers of the product, not add-ons.
+**The feed against the deployed relay**
 
-## How a request flows
+```bash
+cd web && cp .env.example .env    # VITE_API_HOST points at the relay
+npm run dev
+```
 
-1. Toru tells their AI: "Show tax-inclusive prices on the hotel booking site."
-2. The relay routes it to Tanaka, the approver, as an approval card.
-3. Tanaka's AI (this runner) sees the card, queries the graph, attaches the
-   context, spins up a sandbox, applies the change, runs the tests, attaches
-   the results. Tanaka's feed updates in place.
-4. Tanaka swipes right.
-5. The runner pushes the branch from that sandbox, opens the PR, records the
-   decision and PR in the graph, and sends Toru a card: "Approved. PR #12 is open."
-6. Any other decision discards the sandbox and records the outcome in the graph.
+**The agent** (Daytona and Neo4j are required; it will not start without them)
+
+```bash
+cd agent && npm install && cp .env.example .env
+npm run smoke:daytona     # create → exec → delete
+npm run smoke:neo4j       # RETURN 1, schema
+npm run smoke:llm         # model endpoint
+npm start                 # preflight, make the desk, join the relay
+npm run deploy:desk       # or: run the agent inside its own Daytona desk
+```
+
+Sign in to the web feed as the person whose AI this is and copy
+`sessionToken`, `userId`, `orgId` from Local Storage into `.env`. Two people,
+two processes.
+
+**The relay**
+
+```bash
+cd relay && npm install && npm test && npx wrangler dev
+```
+
+## Status
+
+Working: feed, routing, real-time relay, GitHub sync, per-business filing,
+evidence panel, decision graph, fleet screen, demo mode; agent with desk,
+fork, edits, tests, preview, push, PR, result card; Neo4j schema, seeding,
+precedent and collision queries, live graph publishing.
+
+Verified end to end: agent ⇄ deployed relay ⇄ Neo4j (local Community 5.26
+over the HTTP Query API), cards seeded and the neighbourhood published.
+Daytona calls are written against the SDK's type definitions and run on the
+day with an API key.
+
+Next: blast radius (which other open decisions an approval changes), several
+forks per decision trying alternatives in parallel, dry-runs for non-code
+decisions, and graph-informed routing.

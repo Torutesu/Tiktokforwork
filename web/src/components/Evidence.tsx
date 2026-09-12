@@ -6,6 +6,7 @@ import './Evidence.css'
 
 interface Props {
   card: DecisionCard
+  onOpenGraph?: (cardId: string) => void
 }
 
 const LAYER_LABEL: Record<string, string> = {
@@ -38,7 +39,7 @@ function agoShort(iso?: string): string {
 /// The recipient's AI, showing its work. Everything here was found out
 /// before the person looked: the dry-run in a sandbox, what the decision
 /// graph remembers, and, once they approve, what was executed.
-export const Evidence: React.FC<Props> = ({ card }) => {
+export const Evidence: React.FC<Props> = ({ card, onOpenGraph }) => {
   const t = useT()
   const ev = card.evidence
   const dry = ev?.dryRun
@@ -119,6 +120,9 @@ export const Evidence: React.FC<Props> = ({ card }) => {
         <div className="ev-graph">
           {graph.summary && <p className="ev-summary">{graph.summary}</p>}
           <MiniGraph card={card} />
+          {onOpenGraph && (
+            <button type="button" className="ev-graph-open" onClick={() => onOpenGraph(card.id)}>{t('Explore in the graph')} ›</button>
+          )}
           {(graph.related?.length || 0) > 0 && (
             <ul className="ev-list">
               {graph.related!.slice(0, 3).map((r) => (

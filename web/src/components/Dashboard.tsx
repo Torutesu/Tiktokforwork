@@ -9,6 +9,7 @@ import { CreateDecision } from './CreateDecision'
 import { RecordSheet } from './RecordSheet'
 import { Team } from '../screens/Team'
 import { Agents } from '../screens/Agents'
+import { Graph } from '../screens/Graph'
 import { Tools } from '../screens/Tools'
 import { History } from '../screens/History'
 import { NotificationSettings } from '../screens/NotificationSettings'
@@ -39,7 +40,7 @@ type Mode = 'cards' | 'classic'
 // A full screen over the feed, as opposed to a sheet. These are the design's
 // own screens — Tools, History, Notifications, Plan, You — and each one owns
 // the viewport while it is open.
-type Screen = null | 'tools' | 'history' | 'notifications' | 'plans' | 'profile' | 'team' | 'agents'
+type Screen = null | 'tools' | 'history' | 'notifications' | 'plans' | 'profile' | 'team' | 'agents' | 'graph'
 
 /// The shell around the feed. The feed is the screen; everything else —
 /// telling your AI something, what you sent, what you decided, the team —
@@ -73,6 +74,8 @@ export const Dashboard: React.FC<Props> = ({ userId, orgId, relayUrl, sessionTok
   // `?demo` runs the feed against a scripted client: the same events the relay
   // would send, on a timer, with no backend. It is how the product is shown
   // on a stage without two phones, a sandbox and a graph database on the wifi.
+  // The decision the graph opens centred on, when it is opened from a card.
+  const [graphFocus, setGraphFocus] = useState<string | null>(null)
   const wsClientRef = useRef<WebSocketClient | DemoClient | null>(null)
   if (wsClientRef.current === null) wsClientRef.current = isDemo() ? new DemoClient() : new WebSocketClient()
 
@@ -260,6 +263,7 @@ export const Dashboard: React.FC<Props> = ({ userId, orgId, relayUrl, sessionTok
           focusCardId={focusCardId}
           onDecide={handleDecision}
           onAsk={handleAsk}
+          onOpenGraph={(id) => { setGraphFocus(id); setScreen('graph') }}
         />
       ) : (
         <ClassicList
@@ -335,7 +339,7 @@ export const Dashboard: React.FC<Props> = ({ userId, orgId, relayUrl, sessionTok
           <button className="tab compose" data-tab="compose" onClick={() => setPanel('compose')} aria-label={t('Tell your AI')} aria-keyshortcuts="n">
             <span className="fab-face"><Icon name="plus" /></span>
           </button>
-          <button className="tab" data-tab="tools" onClick={() => setScreen('tools')} aria-label={t('Tools')}><Icon name="tools" /></button>
+          <button className="tab" data-tab="graph" onClick={() => { setGraphFocus(null); setScreen('graph') }} aria-label={t('Decision graph')}><Icon name="graph" /></button>
           <button className="tab" data-tab="you" onClick={() => setScreen('profile')} aria-label={t('You')}><Icon name="you" /></button>
         </nav>
       )}
@@ -416,6 +420,14 @@ export const Dashboard: React.FC<Props> = ({ userId, orgId, relayUrl, sessionTok
           // here to show them. Asking the server where they still belong is
           // the same question a sign-in asks.
           onLeft={() => { setScreen(null); onLeft() }}
+          onClose={() => setScreen(null)}
+        />
+      )}
+      {screen === 'graph' && (
+        <Graph
+          state={state}
+          focusCardId={graphFocus}
+          onOpenCard={(id) => { setScreen(null); setFocusCardId(id); switchMode('cards') }}
           onClose={() => setScreen(null)}
         />
       )}

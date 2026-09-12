@@ -7,6 +7,16 @@
 // swipes, a PR opens, and the next request already knows about the first.
 
 import type { AppState, DecisionCard, Business, Evidence } from '../types/card'
+import { buildGraph } from '../utils/graph'
+
+// The graph as Neo4j would return it for this org, from the cards.
+function mirrorGraph(state: AppState) {
+  const g = buildGraph({ ...state, context: undefined })
+  return {
+    nodes: g.nodes.map((n) => ({ id: n.id, kind: n.kind, name: n.label, props: n.props, action: n.action, createdAt: n.createdAt, cardId: n.cardId })),
+    edges: g.edges.map((e) => ({ from: e.from, to: e.to, type: e.type })),
+  }
+}
 
 export const DEMO_USER = 'tanaka'
 export const DEMO_ORG = 'demo/booking-site'
@@ -102,6 +112,10 @@ export class DemoClient {
     const context = { ...(this.state.context || {}) }
     const prev = context[user]?.agent
     context[user] = { ...(context[user] || {}), agent: { user, desk: { id: `sb-desk-${user}`, name: `desk-${user}`, state: 'started' }, working: [], done: 0, ...(prev || {}), ...patch, at: new Date().toISOString() } }
+    // What the runner publishes from Neo4j after every change: the org's
+    // neighbourhood. In the demo it is derived from the same cards Neo4j
+    // would have been seeded with, and stamped as the live graph.
+    if (user === DEMO_USER) context[user].graph = { ...mirrorGraph(this.state), source: 'neo4j', at: new Date().toISOString() }
     this.state = { ...this.state, context }
     this.emit()
   }
@@ -127,11 +141,11 @@ export class DemoClient {
   private card(id: string) { return this.state.cardsById[id] }
   private patch(id: string, fn: (c: DecisionCard) => DecisionCard) {
     const c = this.card(id); if (!c) return
-    this.state.cardsById[id] = fn({ ...c }); this.emit(); this.onCardUpdated?.(this.state.cardsById[id])
+    this.state.cardsById[id] = fn({ ...c }); this.agent(DEMO_USER, {}); this.onCardUpdated?.(this.state.cardsById[id])
   }
   private arrive(card: DecisionCard) {
     const c = { ...card, createdAt: new Date().toISOString() }
-    this.state.cardsById[c.id] = c; this.emit(); this.onCardCreated?.(c)
+    this.state.cardsById[c.id] = c; this.agent(DEMO_USER, {}); this.onCardCreated?.(c)
   }
   private step(id: string, label: string, opts: { detail?: string; layer?: any; status?: 'running' | 'done' | 'failed'; finishPrev?: boolean } = {}) {
     this.patch(id, (c) => {

@@ -32,6 +32,15 @@ await wait(2600)                       // graph answered, sandbox up
 await shot('03-evidence-running')
 await wait(4800)                       // tests ran
 await shot('04-evidence-done')
+await page.getByRole('button', { name: /decision graph/i }).click()
+await wait(2600)                       // the layout settles
+await shot('04a-graph')
+await page.locator('.node.kind-Decision').first().dispatchEvent('pointerdown')
+await page.locator('.node.kind-Decision').first().dispatchEvent('pointerup')
+await wait(500)
+await shot('04a2-graph-selected')
+await page.getByRole('button', { name: /close/i }).first().click()
+await wait(400)
 await page.getByRole('button', { name: /team's AIs/i }).click()
 await wait(600)
 await shot('04b-fleet')

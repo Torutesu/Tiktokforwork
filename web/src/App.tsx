@@ -17,13 +17,17 @@ const DEFAULT_HOST = import.meta.env.VITE_API_HOST || 'localhost:8787'
 // and in production over https. Hardcoding http:// meant a deployed client
 // could not reach an https backend at all, and would have put the sign-in
 // email and password on the wire in cleartext if pointed at one.
-const secure = typeof location !== 'undefined' && location.protocol === 'https:'
-
+const pageSecure = typeof location !== 'undefined' && location.protocol === 'https:'
+// A local page may still point at a deployed backend, and that backend only
+// speaks TLS: a plain ws:// to it is refused before the join is even sent.
+function secure(host: string) {
+  return pageSecure || !/^(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(host)
+}
 function httpBase(host: string) {
-  return `${secure ? 'https' : 'http'}://${host}`
+  return `${secure(host) ? 'https' : 'http'}://${host}`
 }
 function wsBase(host: string) {
-  return `${secure ? 'wss' : 'ws'}://${host}`
+  return `${secure(host) ? 'wss' : 'ws'}://${host}`
 }
 
 // Where someone is in getting into the product. `app` is the only stage with a

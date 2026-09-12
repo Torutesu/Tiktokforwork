@@ -88,10 +88,19 @@ function bits(ev) {
 // --------------------------------------------------------- fleet status
 
 let statusTimer;
+let lastGraph = null;
 function publishStatus() {
   clearTimeout(statusTimer);
-  statusTimer = setTimeout(() => {
+  statusTimer = setTimeout(async () => {
     try {
+      // The graph this agent works in, straight from Neo4j, so every screen
+      // on the team draws the live graph and not a mirror of its own cards.
+      try {
+        const g = await neo4j.neighborhood(relay.orgId);
+        if (JSON.stringify(g).length < 48 * 1024) lastGraph = g;
+      } catch (err) {
+        log("graph publish skipped", err.message);
+      }
       relay.sendContext({
         agent: {
           user: relay.userId,
@@ -100,6 +109,7 @@ function publishStatus() {
           done,
           at: new Date().toISOString(),
         },
+        ...(lastGraph ? { graph: lastGraph } : {}),
       });
     } catch (err) {
       log("status publish failed", err.message);
@@ -115,11 +125,9 @@ relay.onSnapshot = async (state) => {
   publishStatus();
   try {
     await neo4j.ensureSchema();
-    const members = await relay.members().catch(() => []);
-    if (members.length) await neo4j.upsertMembers(relay.orgId, members);
     const cards = Object.values(state.cardsById);
-    for (const c of cards) await neo4j.upsertCard(c, { repo: env("TARGET_REPO") });
-    log(`neo4j: synced ${members.length} members, ${cards.length} decisions`);
+    for (const c of cards) await neo4j.upsertCard(c, { repo: env("TARGET_REPO"), orgId: relay.orgId });
+    log(`neo4j: synced ${cards.length} decisions`);
   } catch (err) {
     log("neo4j sync failed", err.message);
   }
@@ -133,7 +141,7 @@ async function enrich(card) {
   // 1. Neo4j first — the graph answers in milliseconds and is useful on its own.
   track.push(ja ? "判断グラフに問い合わせ" : "Asked the decision graph", ja ? "前例・競合・前回の決定者" : "precedent · collisions · who decided last time", { layer: "neo4j" });
   try {
-    await neo4j.upsertCard(card, { repo });
+    await neo4j.upsertCard(card, { repo, orgId: relay.orgId });
     const ctx = await neo4j.contextFor(card.id);
     const graph = { ...ctx, business: card.business, repo, summary: await summarizeGraph({ ...ctx, locale: ja ? "ja" : "en" }) };
     track.push(ja ? "グラフの答え" : "The graph answered", `${ctx.related.length} ${ja ? "件の前例" : "precedents"} · ${ctx.conflicts.length} ${ja ? "件の競合" : "collisions"}`, { layer: "neo4j", status: "done", replaceLast: true });
@@ -160,7 +168,7 @@ async function execute(card, decision) {
   if (!action) return;
   log(`decision on ${card.id}: ${action}`);
   const dry = dryRuns.get(card.id);
-  neo4j.upsertCard({ ...card, decision: { ...card.decision, ...decision } }).catch((e) => log("neo4j record failed", e.message));
+  neo4j.upsertCard({ ...card, decision: { ...card.decision, ...decision } }, { repo: env("TARGET_REPO"), orgId: relay.orgId }).catch((e) => log("neo4j record failed", e.message));
 
   if (action !== "approve") {
     await daytona.discard(card.id);

@@ -19,9 +19,18 @@ import React from 'react'
 export type IconName =
   | 'home' | 'you' | 'history' | 'tools' | 'plus'
   | 'record' | 'bell' | 'invite' | 'plan' | 'mail' | 'hash' | 'notion' | 'github' | 'box'
-  | 'calendar' | 'drive'
+  | 'calendar' | 'drive' | 'graph'
 
 const PATHS: Record<IconName, React.ReactNode> = {
+  // Three nodes and the lines between them: the graph.
+  graph: (
+    <>
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="18" cy="8" r="3" />
+      <circle cx="10" cy="18" r="3" />
+      <path d="M8.6 7.2L15.4 7.6M7.4 8.6L8.9 15.2M15.8 10.2L12.2 15.8" />
+    </>
+  ),
   // Figma: Chrome/Tab Bar → icon/home
   home: (
     <>
