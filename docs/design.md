@@ -20,7 +20,6 @@ the decision itself.** Each gap maps to one infrastructure layer.
 |---|---|---|
 | No "I tried it" before the decision | A disposable, isolated environment per card that clones, edits and tests | Daytona |
 | No "we decided this before" or "this collides with" | A graph of people, businesses, decisions, repos and PRs, queried per card | Neo4j |
-| Decision data sent to a third-party model API | An open-weight model on GPU compute we deploy | Nosana |
 
 ## The recipient's AI, made real
 
@@ -123,18 +122,15 @@ One sandbox per card, kept alive until the card is decided.
 Sandbox creation and command execution use the official TypeScript SDK; the
 call signatures in `agent/src/daytona.js` match the SDK's type definitions.
 
-## Inference (Nosana)
+## Model calls
 
-The agent makes two kinds of model call, both structured:
+The agent makes two kinds of model call, both structured and small:
 
 - **Patch proposal**: given the instruction and up to three files, return JSON
-  edits. A code model (Qwen2.5-Coder-7B-Instruct) is the right tool.
+  edits.
 - **Graph summary**: given the precedent and collision rows, return one sentence.
 
-Both go to an OpenAI-compatible endpoint exposed by a vLLM or Ollama job on
-Nosana. There is no other provider in the agent. Optionally the relay's own
-routing model can point at the same deployment (`docs/relay-nosana-provider.md`),
-which puts every model call in the product on compute we control.
+Both go to any OpenAI-compatible `/v1` endpoint (`LLM_BASE_URL`, `LLM_MODEL`).
 
 ## Demo walkthrough
 
@@ -145,7 +141,7 @@ which puts every model call in the product on compute we control.
 | 3 | Tanaka's feed: the card lands, then evidence appears on it a few seconds later. A terminal shows the sandbox log beside it | Before Tanaka looked, their AI tried it in a fresh sandbox and asked the graph what was decided before and who this collides with |
 | 4 | Tanaka swipes right | Read the evidence, decide once |
 | 5 | Toru's feed: "Approved. PR #12 is open." The PR page | The approval executed itself. Nobody waited for someone to start |
-| 6 | The graph in Neo4j Browser | Every decision becomes context for the next one. The model behind it runs on GPU compute we deploy |
+| 6 | The graph in Neo4j Browser | Every decision becomes context for the next one |
 
 `DEMO_CACHE=1` serves a stored dry-run for an instruction already run once,
 so rehearsals do not wait on a clone and a test run. Keep it off for the one
@@ -158,8 +154,7 @@ live run; the moment the evidence appears is the demo.
 | `npm ci` is slow in the sandbox | Use a demo repository with no dependencies (`node --test`). Rehearse with the cache |
 | Session token expired (`sign-in-required` on join) | Sign in again in the web client and copy the new token |
 | The Neo4j instance does not serve the HTTP Query API | Swap `run()` in `neo4j.js` for `neo4j-driver` over Bolt; every other function stays |
-| The 7B model is slow or its JSON is malformed | Drop to a 1.5B–3B coder model; both agent calls are JSON-only and tolerate a small model |
-| The Nosana job restarts and its URL changes | Redeploy, update `LLM_BASE_URL`, run `npm run smoke:llm` |
+| The model's JSON is malformed | Both calls are JSON-only; `response_format: json_object` plus a fence strip handles the common cases. A failed proposal still yields a clone-and-test dry-run |
 | The model's patch breaks the tests | That is evidence. The card says so and the approver decides with it |
 
 ## Hypotheses this design lets us test

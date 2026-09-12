@@ -5,9 +5,9 @@ it attaches sandbox dry-runs and graph context to every Decision Card that
 person receives, and turns an approval into a pushed branch and a pull request.
 Design and data model: [../docs/design.md](../docs/design.md).
 
-**Daytona, Neo4j and Nosana are required.** On start the runner checks all
-three and exits if any does not answer. There is no "skip if unconfigured"
-branch anywhere in this directory.
+**Daytona and Neo4j are required.** On start the runner checks both (and the
+model endpoint) and exits if any does not answer. There is no "skip if
+unconfigured" branch anywhere in this directory.
 
 ## Run
 
@@ -16,7 +16,7 @@ npm install                  # the Daytona SDK is the only dependency; Node 22+
 cp .env.example .env
 npm run smoke:daytona        # create → exec → delete
 npm run smoke:neo4j          # RETURN 1 and the schema constraints
-npm run smoke:llm            # the model on Nosana answers "ready"
+npm run smoke:llm            # the model endpoint answers "ready"
 npm start
 ```
 
@@ -29,18 +29,6 @@ Application → Local Storage copy `sessionToken`, `userId` and `orgId` into
 The relay lets only a card's recipient update it, so the runner must hold the
 recipient's session. To run two people's AIs, run two processes with two
 `.env` files.
-
-## Nosana deployment
-
-1. In the Nosana dashboard pick a vLLM or Ollama template and set the model to
-   `Qwen/Qwen2.5-Coder-7B-Instruct` (enough for both the patch proposal and the
-   graph summary).
-2. Put the job's public URL plus `/v1` in `LLM_BASE_URL` and the model name in
-   `LLM_MODEL`.
-3. `npm run smoke:llm` should print `ready`.
-
-Every model call this runner makes goes there. To point the relay's own
-routing at the same job, see [../docs/relay-nosana-provider.md](../docs/relay-nosana-provider.md).
 
 ## What it does
 
@@ -72,5 +60,3 @@ not work in that mode. Rehearse with the cache; run the real thing once, live.
 - The Neo4j HTTP Query API path `/db/<name>/query/v2`: `npm run smoke:neo4j`
   proves it. If the instance does not serve it, swap `run()` for
   `neo4j-driver` over Bolt and keep every other function.
-- A Nosana job's URL changes per deployment: update `.env` and run `smoke:llm`
-  before every demo.

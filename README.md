@@ -36,10 +36,6 @@ Before the recipient opens the card, their AI has already:
 2. **Remembered.** **Neo4j** holds the graph of people, businesses, decisions,
    repositories and pull requests. The AI asks it what was decided before, by
    whom, and whose open work this collides with, and writes that on the card.
-3. **Reasoned privately.** The model that proposes the patch and summarizes the
-   graph runs on **Nosana** GPU compute we deploy ourselves, so decision data
-   never goes to a third-party API.
-
 When the recipient swipes right, the same sandbox pushes its branch, opens a
 pull request, records the decision and the PR in the graph, and sends a result
 card back to whoever asked.
@@ -55,12 +51,11 @@ card back to whoever asked.
                                     ┌──────────▼──────────┐
                                     │ agent/              │
                                     │ the recipient's AI  │
-                                    └──┬───────┬────────┬─┘
-                                       ▼       ▼        ▼
-                                   Daytona   Neo4j    Nosana
-                                   sandbox   graph    inference
-                                   per card  (Query   (OpenAI-
-                                   (SDK)     API)     compatible)
+                                    └──┬───────────┬──────┘
+                                       ▼           ▼
+                                   Daytona       Neo4j
+                                   one sandbox   decision graph
+                                   per card      (Query API)
 ```
 
 The relay already exposes everything the agent needs: a state snapshot on join,
@@ -73,32 +68,30 @@ which is exactly what lets it enrich that person's cards and nobody else's.
 |---|---|---|
 | **Daytona** | One sandbox per card: clone, edit, test, and later push | Cards are created continuously and in parallel. Sub-second, disposable, fully isolated environments are what make "the evidence is there before you look" possible without a queue |
 | **Neo4j** | The decision graph and its GraphRAG queries | "Who approved the last three decisions about this business, what PRs came out of them, and who is working on that code right now" is a multi-hop question. Rows cannot answer it; a graph answers it in one query |
-| **Nosana** | GPU inference for patch proposals and graph summaries | Decisions are the most confidential data a company has. Running an open-weight model on compute we control keeps them in-house |
 
 ## Repository layout
 
 | Path | What |
 |---|---|
-| `agent/` | The runner: relay client, Daytona sandbox lifecycle, Neo4j graph, Nosana inference, smoke scripts |
+| `agent/` | The runner: relay client, Daytona sandbox lifecycle, Neo4j graph, model client, smoke scripts |
 | `docs/design.md` | Design rationale, data model, graph schema, sandbox procedure, demo walkthrough |
 | `docs/feed-evidence-badges.md` | Optional: dedicated evidence badges in the web feed |
-| `docs/relay-nosana-provider.md` | Optional: point the relay's own routing model at the same Nosana deployment |
 
 ## Quick start
 
 ```bash
 cd agent
 npm install                  # the Daytona SDK is the only dependency; Node 22+
-cp .env.example .env         # fill in the relay session, Daytona, Neo4j, Nosana, GitHub
+cp .env.example .env         # fill in the relay session, Daytona, Neo4j, the model endpoint, GitHub
 npm run smoke:daytona        # create → exec → delete
 npm run smoke:neo4j          # RETURN 1 and the schema constraints
-npm run smoke:llm            # the model on Nosana answers
-npm start                    # preflight all three, then join the relay
+npm run smoke:llm            # the model endpoint answers
+npm start                    # preflight, then join the relay
 ```
 
-The runner refuses to start until Daytona, Neo4j and Nosana all answer. There
-is deliberately no "skip if unconfigured" path: they are the execution, context
-and inference layers of the product, not add-ons.
+The runner refuses to start until Daytona and Neo4j both answer. There is
+deliberately no "skip if unconfigured" path: they are the execution and
+context layers of the product, not add-ons.
 
 ## How a request flows
 

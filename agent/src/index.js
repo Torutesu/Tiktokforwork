@@ -4,9 +4,9 @@
 //   I approve        → push branch + open PR → result card to the requester → Neo4j
 //   I decline        → sandbox discarded, decision recorded in the graph
 //
-// Daytona, Neo4j and Nosana are not optional layers on top of the product —
-// they ARE the execution, context and inference layers of it. The runner
-// refuses to start until all three answer, so a demo never silently runs
+// Daytona and Neo4j are not optional layers on top of the product — they ARE
+// its execution and context layers. The runner refuses to start until both
+// answer (and the model endpoint does), so a demo never silently runs
 // without one of them.
 
 import { env } from "./env.js";
@@ -32,15 +32,15 @@ function bits(dry, graph) {
   return out;
 }
 
-// Preflight: every sponsor service must answer before we join the relay.
+// Preflight: Daytona, Neo4j and the model endpoint must answer before we join.
 async function preflight() {
-  for (const k of ["DAYTONA_API_KEY", "NEO4J_URI", "NEO4J_PASSWORD", "LLM_BASE_URL", "TARGET_REPO", "GITHUB_TOKEN"]) env(k);
+  for (const k of ["DAYTONA_API_KEY", "NEO4J_URI", "NEO4J_PASSWORD", "LLM_API_KEY", "TARGET_REPO", "GITHUB_TOKEN"]) env(k);
   const t = Date.now();
   await neo4j.run("RETURN 1");
   log(`neo4j ok (${Date.now() - t}ms)`);
   const t2 = Date.now();
   await chat([{ role: "user", content: "ping" }], { maxTokens: 2 });
-  log(`nosana llm ok: ${env("LLM_MODEL")} @ ${env("LLM_BASE_URL")} (${Date.now() - t2}ms)`);
+  log(`model ok: ${env("LLM_MODEL")} @ ${env("LLM_BASE_URL")} (${Date.now() - t2}ms)`);
   const t3 = Date.now();
   await daytona.ping();
   log(`daytona ok (${Date.now() - t3}ms)`);
@@ -129,4 +129,4 @@ async function execute(card, decision) {
 
 await preflight();
 relay.connect();
-log("agent running as", relay.userId, "— Daytona · Neo4j · Nosana all live");
+log("agent running as", relay.userId, "— Daytona and Neo4j live");
