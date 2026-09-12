@@ -1,4 +1,4 @@
-// The runner's connection to the Honmaru relay, speaking AG-UI over WebSocket
+// The runner's connection to the relay, speaking AG-UI over WebSocket
 // exactly like web-react/src/services/WebSocketClient.ts. It joins as ONE user
 // (the recipient whose AI it is), keeps { cardsById } in sync from
 // STATE_SNAPSHOT / STATE_DELTA, and lets the caller react to new cards and to
@@ -105,8 +105,8 @@ export class Relay {
   // existing UI already renders as bullets when split on " · ".
   attachEvidence(card, evidence, contextBits = []) {
     const latest = this.state.cardsById[card.id] || card;
-    const baseContext = (latest.context || "").split(/\s+·\s+/).filter((s) => !s.startsWith("[honmaru]"));
-    const context = [...baseContext, ...contextBits.map((b) => `[honmaru] ${b}`)].join(" · ");
+    const baseContext = (latest.context || "").split(/\s+·\s+/).filter((s) => !s.startsWith("[agent]"));
+    const context = [...baseContext, ...contextBits.map((b) => `[agent] ${b}`)].join(" · ");
     const updated = { ...latest, context, evidence: { ...(latest.evidence || {}), ...evidence } };
     this.send("card_updated", { card: updated });
     return updated;

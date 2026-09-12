@@ -48,7 +48,7 @@ function cachePut(key, value) {
 
 /**
  * Dry-run a card's instruction in a fresh sandbox.
- * @returns evidence.dryRun (see HACKATHON.md §7.1)
+ * @returns evidence.dryRun (see docs/design.md, "Evidence on a card")
  */
 export async function dryRun(card, { instruction = card.sourceInstruction || card.title, withEdits = true, log = console.log } = {}) {
   const key = `${env("TARGET_REPO")}::${instruction}`;
@@ -56,7 +56,7 @@ export async function dryRun(card, { instruction = card.sourceInstruction || car
   if (cached) { log("dry-run: served from DEMO_CACHE"); return { ...cached, cached: true }; }
 
   const t0 = Date.now();
-  const branch = `honmaru/card-${card.id.slice(-8)}`;
+  const branch = `agent/card-${card.id.slice(-8)}`;
   const repo = env("TARGET_REPO");
   const sandbox = await daytona().create({ language: "typescript" });
   sandboxes.set(card.id, sandbox);
@@ -64,7 +64,7 @@ export async function dryRun(card, { instruction = card.sourceInstruction || car
 
   try {
     await sandbox.git.clone(`https://github.com/${repo}.git`, REPO_DIR, undefined, undefined, env("GITHUB_USER", ""), env("GITHUB_TOKEN", ""));
-    await sh(sandbox, `git checkout -b ${branch} && git config user.email honmaru-ai@example.com && git config user.name "Honmaru AI"`);
+    await sh(sandbox, `git checkout -b ${branch} && git config user.email agent@tiktokforwork.dev && git config user.name "TikTok for Work Agent"`);
 
     let editSummary = "";
     if (withEdits) {
@@ -83,7 +83,7 @@ export async function dryRun(card, { instruction = card.sourceInstruction || car
           f.content = f.content.replace(e.find, e.replace);
           await sandbox.fs.uploadFile(Buffer.from(f.content), `${REPO_DIR}/${e.path}`);
         }
-        await sh(sandbox, `git add -A && git commit -qm ${JSON.stringify(`Honmaru AI: ${instruction}`.slice(0, 72))} || true`);
+        await sh(sandbox, `git add -A && git commit -qm ${JSON.stringify(`Agent: ${instruction}`.slice(0, 72))} || true`);
       }
     }
 
@@ -114,7 +114,7 @@ export async function pushAndOpenPR(card, dryRunResult, { title, body }) {
   if (push.code !== 0) throw new Error(`push failed: ${push.out.slice(-300)}`);
   const r = await fetch(`https://api.github.com/repos/${repo}/pulls`, {
     method: "POST",
-    headers: { authorization: `Bearer ${env("GITHUB_TOKEN")}`, accept: "application/vnd.github+json", "user-agent": "honmaru-agent" },
+    headers: { authorization: `Bearer ${env("GITHUB_TOKEN")}`, accept: "application/vnd.github+json", "user-agent": "tfw-agent" },
     body: JSON.stringify({ title, body, head: dryRunResult.branch, base: "main" }),
   });
   if (!r.ok) throw new Error(`PR create ${r.status}: ${(await r.text()).slice(0, 300)}`);

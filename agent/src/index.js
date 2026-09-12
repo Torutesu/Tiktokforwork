@@ -1,4 +1,4 @@
-// Honmaru agent runner — "the recipient's AI", made real.
+// TikTok for Work agent runner — "the recipient's AI", made real.
 //
 //   new card for me  → Neo4j context + Daytona dry-run → card_updated { evidence }
 //   I approve        → push branch + open PR → result card to the requester → Neo4j
@@ -105,7 +105,7 @@ async function execute(card, decision) {
   try {
     const exec = await daytona.pushAndOpenPR(card, dry, {
       title: card.title,
-      body: `${card.summary || ""}\n\nApproved by ${relay.userId} in Honmaru AI. Verified in Daytona sandbox ${dry.sandboxId}: ${dry.tests?.passed ?? 0} tests passed.\n\nDecision: ${card.id}`,
+      body: `${card.summary || ""}\n\nApproved by ${relay.userId} in TikTok for Work. Verified in Daytona sandbox ${dry.sandboxId}: ${dry.tests?.passed ?? 0} tests passed.\n\nDecision: ${card.id}`,
     });
     dryRuns.delete(card.id);
     neo4j.recordPR(card.id, exec.prUrl).catch((e) => log("neo4j PR record failed", e.message));
@@ -129,4 +129,4 @@ async function execute(card, decision) {
 
 await preflight();
 relay.connect();
-log("honmaru agent running as", relay.userId, "— Daytona · Neo4j · Nosana all live");
+log("agent running as", relay.userId, "— Daytona · Neo4j · Nosana all live");
