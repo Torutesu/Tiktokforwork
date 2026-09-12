@@ -1,0 +1,254 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>TikTok for Work</title>
+<style>
+@page { size: 1280px 720px; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #fff; }
+body { font-family: "Helvetica Neue", Helvetica, Arial, "Noto Sans", sans-serif; color: #202020; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.slide { width: 1280px; height: 720px; padding: 72px 88px; position: relative; page-break-after: always; overflow: hidden; display: flex; flex-direction: column; }
+.slide:last-child { page-break-after: auto; }
+.kicker { font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: #6647f0; font-weight: 600; margin-bottom: 18px; }
+h1 { font-size: 64px; line-height: 1.05; margin: 0 0 24px; font-weight: 600; letter-spacing: -.02em; }
+h2 { font-size: 44px; line-height: 1.1; margin: 0 0 28px; font-weight: 600; letter-spacing: -.02em; }
+p, li { font-size: 22px; line-height: 1.45; margin: 0; }
+.muted { color: #6b6b73; }
+.foot { position: absolute; left: 88px; right: 88px; bottom: 36px; display: flex; justify-content: space-between; font-size: 13px; color: #9a9aa2; letter-spacing: .06em; text-transform: uppercase; }
+.cols { display: flex; gap: 48px; flex: 1; }
+.col { flex: 1; }
+.card { border: 1px solid #e8e8e8; border-radius: 16px; padding: 28px 32px; background: #fff; }
+.tag { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: #6b6b73; }
+.tag b { color: #6647f0; font-weight: 600; }
+.card h3 { font-size: 26px; margin: 10px 0 8px; font-weight: 600; line-height: 1.2; }
+.ev { margin-top: 18px; padding-top: 16px; border-top: 1px solid #eee; }
+.ev p { font-size: 17px; line-height: 1.55; }
+.ev .ok { color: #1a8f4a; font-weight: 600; }
+.actions { display: flex; gap: 14px; margin-top: 22px; }
+.actions span { flex: 1; text-align: center; border: 1px solid #e0e0e0; border-radius: 9999px; padding: 10px 0; font-size: 16px; }
+.actions .primary { background: #202020; color: #fff; border-color: #202020; }
+.big { font-size: 30px; line-height: 1.35; font-weight: 500; }
+ul { padding-left: 24px; margin: 0; }
+li { margin-bottom: 12px; }
+.pill { display: inline-block; border: 1px solid #e8e8e8; border-radius: 9999px; padding: 6px 16px; font-size: 16px; margin: 0 8px 8px 0; }
+.flow { display: flex; align-items: stretch; gap: 0; margin-top: 12px; }
+.step { flex: 1; border: 1px solid #e8e8e8; border-radius: 14px; padding: 18px 18px; position: relative; }
+.step + .step { margin-left: 34px; }
+.step + .step::before { content: ""; position: absolute; left: -22px; top: 50%; width: 12px; height: 12px; border-top: 2px solid #c8c8ce; border-right: 2px solid #c8c8ce; transform: translateY(-50%) rotate(45deg); }
+.step .n { font-size: 12px; letter-spacing: .12em; color: #6647f0; font-weight: 600; margin-bottom: 8px; }
+.step h4 { font-size: 20px; margin: 0 0 8px; font-weight: 600; line-height: 1.2; }
+.step p { font-size: 15px; line-height: 1.45; color: #4a4a52; }
+.step.hl { border-color: #6647f0; box-shadow: inset 0 0 0 1px #6647f0; }
+table { border-collapse: collapse; width: 100%; }
+td, th { text-align: left; padding: 12px 14px; font-size: 18px; line-height: 1.4; border-bottom: 1px solid #ececec; vertical-align: top; }
+th { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: #6b6b73; font-weight: 600; }
+code { font-family: Menlo, "DejaVu Sans Mono", monospace; font-size: 15px; background: #f5f5f7; padding: 2px 6px; border-radius: 6px; }
+pre { font-family: Menlo, "DejaVu Sans Mono", monospace; font-size: 14.5px; line-height: 1.5; background: #f5f5f7; padding: 18px 20px; border-radius: 12px; margin: 0; white-space: pre; }
+.num { font-size: 88px; font-weight: 600; letter-spacing: -.03em; line-height: 1; color: #6647f0; }
+.stat { flex: 1; }
+.stat p { margin-top: 12px; font-size: 20px; }
+</style></head><body>
+
+<!-- 1 Title -->
+<section class="slide" style="justify-content:center">
+  <div class="kicker">AI-native decision feed for teams</div>
+  <h1>TikTok for Work</h1>
+  <p class="big" style="max-width:900px">Approve it, and it's already done.<br><span class="muted">Every Decision Card arrives with evidence. Every approval executes itself.</span></p>
+  <div style="margin-top:56px"><span class="pill">Daytona · one sandbox per decision</span><span class="pill">Neo4j · the decision graph</span></div>
+  <div class="foot"><span>TikTok for Work</span><span>github.com/Torutesu/Tiktokforwork</span></div>
+</section>
+
+<!-- 2 Problem -->
+<section class="slide">
+  <div class="kicker">The problem</div>
+  <h2>An approval costs a small team twice</h2>
+  <div class="cols">
+    <div class="stat"><div class="num">3</div><p><b>tools opened before you can say yes.</b><br><span class="muted">"Will this break anything? Did we decide this before? Whose work does it collide with?" lives in GitHub, Slack and last month's notes, not on the request.</span></p></div>
+    <div class="stat"><div class="num">2 days</div><p><b>lost after you say yes.</b><br><span class="muted">Approval is where the work starts. Someone still has to write the change, run the tests and open the PR. Between "approved" and "started", nothing moves.</span></p></div>
+  </div>
+  <p class="big" style="margin-top:8px">Teams of 3–10 people running several businesses and repositories feel both, every day.</p>
+  <div class="foot"><span>TikTok for Work</span><span>02</span></div>
+</section>
+
+<!-- 3 Concept -->
+<section class="slide">
+  <div class="kicker">The product</div>
+  <h2>You only talk to your own AI</h2>
+  <div class="cols">
+    <div class="col">
+      <ul>
+        <li>No channels, no DMs, no inbox. You tell your AI what you need.</li>
+        <li>It routes the request across the organization and hands it to the right person as a <b>Decision Card</b>.</li>
+        <li>Cards arrive in a vertical feed, one at a time. <b>Swipe right to approve, left to decline.</b></li>
+        <li>Outcomes sync to GitHub, filed under the business they are about.</li>
+      </ul>
+      <p class="muted" style="margin-top:26px">The 3-second value: open the feed, and the decision you need to make is already there.</p>
+    </div>
+    <div class="col">
+      <div class="card">
+        <div class="tag"><b>Approval</b> · Hotel Sakura · high</div>
+        <h3>Show tax-inclusive prices on the booking site</h3>
+        <p class="muted" style="font-size:17px">Requested by Toru · owner</p>
+        <div class="actions"><span>✕ decline</span><span>✎ revise</span><span class="primary">✓ approve</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>TikTok for Work</span><span>03</span></div>
+</section>
+
+<!-- 4 What's new -->
+<section class="slide">
+  <div class="kicker">What we built</div>
+  <h2>A card that carries evidence, and an approval that ships</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="card">
+        <div class="tag"><b>Approval</b> · Hotel Sakura · high</div>
+        <h3>Show tax-inclusive prices on the booking site</h3>
+        <p class="muted" style="font-size:17px">Requested by Toru · owner</p>
+        <div class="ev">
+          <p><span class="ok">✅ 14 tests passed</span> · 2 files changed (+9 −3)</p>
+          <p>Verified in a Daytona sandbox in 41 s</p>
+          <p>Last similar decision: <b>approved by you on Aug 30</b></p>
+          <p>Yui has an open card touching the same repository</p>
+        </div>
+        <div class="actions"><span>✕ decline</span><span>✎ revise</span><span class="primary">✓ approve</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <p class="big">Before the recipient opens the card, their AI has already:</p>
+      <ul style="margin-top:20px">
+        <li><b>Tried it.</b> A fresh Daytona sandbox cloned the repo, applied the change and ran the tests.</li>
+        <li><b>Remembered.</b> Neo4j answered what was decided before, by whom, and whose open work this collides with.</li>
+      </ul>
+      <p class="big" style="margin-top:26px">Swipe right, and the same sandbox pushes its branch and opens the PR.</p>
+    </div>
+  </div>
+  <div class="foot"><span>TikTok for Work</span><span>04</span></div>
+</section>
+
+<!-- 5 How it works -->
+<section class="slide">
+  <div class="kicker">How it works</div>
+  <h2>The recipient's AI, made real</h2>
+  <div class="flow">
+    <div class="step"><div class="n">1 · REQUEST</div><h4>Toru tells their AI</h4><p>"Show tax-inclusive prices on the hotel booking site."</p></div>
+    <div class="step"><div class="n">2 · ROUTE</div><h4>Relay picks the approver</h4><p>Org graph, roles and approval authority decide it goes to Tanaka.</p></div>
+    <div class="step hl"><div class="n">3 · EVIDENCE</div><h4>Tanaka's AI does the homework</h4><p>Neo4j: precedent and collisions.<br>Daytona: clone, edit, test.<br>Both land on the card in place.</p></div>
+    <div class="step"><div class="n">4 · DECIDE</div><h4>Tanaka swipes right</h4><p>One look at the evidence, one decision.</p></div>
+    <div class="step hl"><div class="n">5 · EXECUTE</div><h4>Branch pushed, PR opened</h4><p>From the same sandbox. Decision and PR recorded in the graph. Result card back to Toru.</p></div>
+  </div>
+  <p class="muted" style="margin-top:34px;font-size:19px">The agent is a separate process that joins the relay <b>as the recipient</b> over the same AG-UI protocol the feed clients use. The relay lets only a card's recipient update it, which is exactly what lets the agent enrich that person's cards and nobody else's. No change to the relay or the clients.</p>
+  <div class="foot"><span>TikTok for Work</span><span>05</span></div>
+</section>
+
+<!-- 6 Daytona -->
+<section class="slide">
+  <div class="kicker">Daytona</div>
+  <h2>One sandbox per decision</h2>
+  <div class="cols">
+    <div class="col">
+      <table>
+        <tr><th>Step</th><th>In the sandbox</th></tr>
+        <tr><td>1</td><td><code>daytona.create()</code>, sub-second, fully isolated</td></tr>
+        <tr><td>2</td><td><code>git clone</code>, <code>git checkout -b agent/card-…</code></td></tr>
+        <tr><td>3</td><td>The model proposes edits; applied with <code>fs.uploadFile</code></td></tr>
+        <tr><td>4</td><td><code>npm test</code> → pass / fail counts, diff stats</td></tr>
+        <tr><td>5</td><td>Approve → <code>git push</code> + PR from this sandbox.<br>Anything else → <code>sandbox.delete()</code></td></tr>
+      </table>
+    </div>
+    <div class="col">
+      <p class="big">Why Daytona and not a CI job or a laptop</p>
+      <ul style="margin-top:18px">
+        <li>Cards are created continuously and in parallel. A queue would put the evidence <i>after</i> the decision.</li>
+        <li>Sub-second, disposable environments make "the evidence is there before you look" possible.</li>
+        <li>The sandbox outlives the dry-run: the approval pushes the exact branch that was tested.</li>
+        <li>A failed run is still evidence. The card says so; the approver decides with it.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>TikTok for Work</span><span>06</span></div>
+</section>
+
+<!-- 7 Neo4j -->
+<section class="slide">
+  <div class="kicker">Neo4j</div>
+  <h2>Decisions become context for the next decision</h2>
+  <div class="cols">
+    <div class="col">
+<pre>(:Person)-[:REQUESTED]->(:Decision)
+(:Decision)-[:ASSIGNED_TO]->(:Person)
+(:Decision)-[:DECIDED_BY {action, at}]->(:Person)
+(:Decision)-[:ABOUT]->(:Business)
+(:Decision)-[:TOUCHES]->(:Repo)
+(:Decision)-[:PRODUCED]->(:PR)
+
+// Precedent: what did we decide about this business?
+MATCH (d:Decision {id:$id})-[:ABOUT]->(b)<-[:ABOUT]-(p)
+WHERE p.action IS NOT NULL
+OPTIONAL MATCH (p)-[r:DECIDED_BY]->(who)
+RETURN p.title, p.action, r.at, who.login
+ORDER BY r.at DESC LIMIT 5
+
+// Collision: who is working on this code right now?
+MATCH (d {id:$id})-[:TOUCHES]->(r)<-[:TOUCHES]-(o)
+      -[:ASSIGNED_TO]->(p)
+WHERE o.action IS NULL
+RETURN o.title, p.login</pre>
+    </div>
+    <div class="col">
+      <p class="big">Why a graph</p>
+      <ul style="margin-top:18px">
+        <li>"Who approved the last three decisions about this business, what PRs came out of them, and who is touching that code now" is a multi-hop question.</li>
+        <li>Rows can't answer it; the graph answers it in one query, per card, in milliseconds.</li>
+        <li>Seeded from the relay's state snapshot on join. Every decision and every PR is written back as it happens.</li>
+        <li>The rows become one sentence on the card, in the reader's language, and stay on it as data.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>TikTok for Work</span><span>07</span></div>
+</section>
+
+<!-- 8 Demo -->
+<section class="slide">
+  <div class="kicker">Live demo</div>
+  <h2>Two phones, one swipe, one pull request</h2>
+  <table>
+    <tr><th>Beat</th><th>On screen</th><th>What it shows</th></tr>
+    <tr><td>1</td><td>Toru's feed. Toru types the request.</td><td>Talking only to your own AI</td></tr>
+    <tr><td>2</td><td>Tanaka's feed. The card lands.</td><td>Routing by role and approval authority</td></tr>
+    <tr><td>3</td><td>Evidence appears on the card in place. Sandbox log alongside.</td><td>Daytona dry-run and Neo4j context, before anyone looked</td></tr>
+    <tr><td>4</td><td>Tanaka swipes right.</td><td>One decision, with evidence</td></tr>
+    <tr><td>5</td><td>Toru's feed: "Approved. PR #12 is open." The PR on GitHub.</td><td>The approval executed itself</td></tr>
+    <tr><td>6</td><td>The graph in Neo4j Browser.</td><td>The decision is now context for the next one</td></tr>
+  </table>
+  <div class="foot"><span>TikTok for Work</span><span>08</span></div>
+</section>
+
+<!-- 9 Status -->
+<section class="slide">
+  <div class="kicker">Where it stands</div>
+  <h2>Built, and next</h2>
+  <div class="cols">
+    <div class="col">
+      <p class="big">Working today</p>
+      <ul style="margin-top:16px">
+        <li>Decision feed, routing, real-time relay, GitHub sync, per-business filing</li>
+        <li>Agent runner: joins as the recipient, enriches cards, executes approvals</li>
+        <li>Daytona sandbox lifecycle: create, clone, edit, test, push, PR, delete</li>
+        <li>Neo4j graph: schema, sync from snapshot, precedent and collision queries</li>
+      </ul>
+    </div>
+    <div class="col">
+      <p class="big">Next</p>
+      <ul style="margin-top:16px">
+        <li>Evidence badges as first-class UI in the feed</li>
+        <li>Blast radius: which other open decisions an approval changes</li>
+        <li>Dry-runs for non-code decisions: pricing, contracts, schedules</li>
+        <li>Graph-informed routing: precedent decides who should decide</li>
+      </ul>
+    </div>
+  </div>
+  <p class="big" style="margin-top:10px">github.com/Torutesu/Tiktokforwork</p>
+  <div class="foot"><span>TikTok for Work</span><span>09</span></div>
+</section>
+
+</body></html>
