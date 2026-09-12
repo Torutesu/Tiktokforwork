@@ -111,6 +111,19 @@ cd relay && npm install && npm test && npx wrangler dev
 
 Sign in to the web feed as the person whose AI this is and copy `sessionToken`, `userId`, `orgId` from Local Storage into `agent/.env`. Secrets live only in `.env` files, which are ignored.
 
+## Links
+
+| | |
+|---|---|
+| Live demo, no sign-in | https://torutesu.github.io/Tiktokforwork/?demo |
+| The real feed | https://torutesu.github.io/Tiktokforwork/ |
+| Demo video (34 s, webm) | https://torutesu.github.io/Tiktokforwork/demo.webm · [`docs/media/demo.webm`](docs/media/demo.webm) |
+| Pitch deck | [`deck/deck.pdf`](deck/deck.pdf) (10 slides) · [`deck/deck.html`](deck/deck.html) plays the video inline |
+| Two-minute script, English and Japanese | [`docs/pitch-script.md`](docs/pitch-script.md) |
+| Design notes | [`docs/design.md`](docs/design.md) |
+| Screenshots | [`docs/media/`](docs/media/) |
+| 日本語 README | [`README.ja.md`](README.ja.md) |
+
 ## Repository
 
 | Path | What |

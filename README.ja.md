@@ -79,6 +79,19 @@ npm run deploy:desk                          # ランナー自体をデスクの
 cd relay && npm install && npm test && npx wrangler dev
 ```
 
+## リンク
+
+| | |
+|---|---|
+| デモ（サインイン不要） | https://torutesu.github.io/Tiktokforwork/?demo |
+| 本番フィード | https://torutesu.github.io/Tiktokforwork/ |
+| デモ動画（34 秒・webm） | https://torutesu.github.io/Tiktokforwork/demo.webm · [`docs/media/demo.webm`](docs/media/demo.webm) |
+| ピッチデック | [`deck/deck.pdf`](deck/deck.pdf)（10 枚）· [`deck/deck.html`](deck/deck.html) は動画をその場で再生 |
+| 2 分スクリプト（英語・日本語） | [`docs/pitch-script.md`](docs/pitch-script.md) |
+| 設計メモ（英語） | [`docs/design.md`](docs/design.md) |
+| 画面 | [`docs/media/`](docs/media/) |
+| English README | [`README.md`](README.md) |
+
 ## リポジトリ構成
 
 | パス | 内容 |
