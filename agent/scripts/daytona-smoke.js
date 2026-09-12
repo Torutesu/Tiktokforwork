@@ -1,0 +1,10 @@
+import { Daytona } from "@daytonaio/sdk";
+import "../src/env.js";
+const t0 = Date.now();
+const d = new Daytona({ apiKey: process.env.DAYTONA_API_KEY });
+const s = await d.create({ language: "typescript" });
+console.log("created", s.id, "in", Date.now() - t0, "ms");
+const r = await s.process.executeCommand("node -v && git --version && echo hello-honmaru");
+console.log("exit", r.exitCode, "\n" + r.result);
+await s.delete();
+console.log("deleted, total", Date.now() - t0, "ms");

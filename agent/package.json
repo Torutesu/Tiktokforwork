@@ -1,0 +1,15 @@
+{
+  "name": "honmaru-agent",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node src/index.js",
+    "smoke:daytona": "node scripts/daytona-smoke.js",
+    "smoke:neo4j": "node scripts/neo4j-smoke.js",
+    "smoke:llm": "node scripts/llm-smoke.js"
+  },
+  "dependencies": {
+    "@daytonaio/sdk": "latest"
+  }
+}
