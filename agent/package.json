@@ -8,7 +8,8 @@
     "smoke:daytona": "node scripts/daytona-smoke.js",
     "smoke:neo4j": "node scripts/neo4j-smoke.js",
     "smoke:llm": "node scripts/llm-smoke.js",
-    "deploy:desk": "node scripts/deploy-desk.js"
+    "deploy:desk": "node scripts/deploy-desk.js",
+    "graph:daytona": "node scripts/neo4j-on-daytona.js"
   },
   "dependencies": {
     "@daytonaio/sdk": "latest"
