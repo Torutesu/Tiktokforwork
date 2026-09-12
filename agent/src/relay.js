@@ -33,6 +33,7 @@ export class Relay {
     this.userId = env("AGENT_USER_ID");
     this.orgId = env("ORG_ID");
     this.seen = new Set();
+    this.decided = new Set();
     this.ready = false;
   }
 
@@ -62,6 +63,11 @@ export class Relay {
       case "RUN_ERROR":
         this.log("RUN_ERROR", ev.message, ev.code);
         if (ev.code === "sign-in-required" || ev.code === "not-a-member") process.exit(1);
+        if (/too many messages/i.test(String(ev.message)) && this.lastSent && this.lastSent.tries < 5) {
+          const again = { ...this.lastSent, tries: this.lastSent.tries + 1 };
+          this.sendGapMs = Math.min(2000, (this.sendGapMs || 350) * 2);
+          setTimeout(() => { this.queue.unshift(again); this.pump(); }, 1500);
+        }
         return;
       case "STATE_SNAPSHOT":
         this.state = ev.snapshot?.cardsById ? ev.snapshot : { cardsById: ev.snapshot || {} };
@@ -72,11 +78,22 @@ export class Relay {
         return;
       case "STATE_DELTA": {
         const before = new Set(Object.keys(this.state.cardsById));
+        // A decision arrives as a state patch (the card gains `decision`);
+        // the TOOL_CALL_RESULT echo only accompanies answers that named
+        // their tool call. So decisions are noticed here, by comparison.
+        const decidedBefore = new Map(Object.entries(this.state.cardsById).map(([id, c]) => [id, c.decision?.action || null]));
         applyPatch(this.state, ev.delta || []);
         for (const [id, card] of Object.entries(this.state.cardsById)) {
-          if (before.has(id) || this.seen.has(id)) continue;
-          this.seen.add(id);
-          if (card.recipientUserID === this.userId && !card.decision?.action) this.onCard?.(card);
+          if (!before.has(id) && !this.seen.has(id)) {
+            this.seen.add(id);
+            if (card.recipientUserID === this.userId && !card.decision?.action) this.onCard?.(card);
+            continue;
+          }
+          const now = card.decision?.action || null;
+          if (now && now !== decidedBefore.get(id) && card.recipientUserID === this.userId && !this.decided.has(`${id}:${now}`)) {
+            this.decided.add(`${id}:${now}`);
+            this.onDecision?.(card, card.decision);
+          }
         }
         return;
       }
@@ -87,7 +104,11 @@ export class Relay {
         try { content = typeof content === "string" ? JSON.parse(content) : content; } catch {}
         const cardId = content?.cardId || content?.id;
         const card = cardId ? this.state.cardsById[cardId] : undefined;
-        if (card) this.onDecision?.(card, content);
+        const action = content?.action || content?.decision?.action || card?.decision?.action;
+        if (card && action && card.recipientUserID === this.userId && !this.decided.has(`${cardId}:${action}`)) {
+          this.decided.add(`${cardId}:${action}`);
+          this.onDecision?.(card, { ...(card.decision || {}), action });
+        }
         return;
       }
       default:
@@ -95,9 +116,42 @@ export class Relay {
     }
   }
 
+  // Every message goes through one queue, spaced out, so a burst of evidence
+  // steps never trips the relay's per-socket rate limit and drops the last,
+  // most important, write. A message the relay refuses for pace is retried.
   send(type, payload) {
-    if (this.ws?.readyState !== WebSocket.OPEN) throw new Error("relay not open");
-    this.ws.send(JSON.stringify({ type, payload }));
+    this.queue ||= [];
+    this.queue.push({ type, payload, tries: 0 });
+    this.pump();
+  }
+
+  pump() {
+    if (this.pumping || !this.queue?.length) return;
+    this.pumping = true;
+    const next = () => {
+      const msg = this.queue.shift();
+      if (!msg) { this.pumping = false; return; }
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.lastSent = msg;
+        this.ws.send(JSON.stringify({ type: msg.type, payload: msg.payload }));
+      } else {
+        this.queue.unshift(msg);
+        this.pumping = false;
+        return;
+      }
+      setTimeout(next, this.sendGapMs || 350);
+    };
+    next();
+  }
+
+  // The latest evidence for a card wins: writes for the same card that are
+  // still waiting in the queue are replaced, not appended.
+  sendLatest(type, payload, key) {
+    this.queue ||= [];
+    const i = this.queue.findIndex((m) => m.key === key);
+    const msg = { type, payload, key, tries: 0 };
+    if (i >= 0) this.queue[i] = msg; else this.queue.push(msg);
+    this.pump();
   }
 
   // Attach evidence to a card we own. The whole card is re-sent (the relay
@@ -108,7 +162,10 @@ export class Relay {
     const baseContext = (latest.context || "").split(/\s+·\s+/).filter((s) => !s.startsWith("[agent]"));
     const context = [...baseContext, ...contextBits.map((b) => `[agent] ${b}`)].join(" · ");
     const updated = { ...latest, context, evidence: { ...(latest.evidence || {}), ...evidence } };
-    this.send("card_updated", { card: updated });
+    // Keep our own state current so the next write builds on this one even
+    // before the relay echoes it back.
+    this.state.cardsById[card.id] = updated;
+    this.sendLatest("card_updated", { card: updated }, `card:${card.id}`);
     return updated;
   }
 
@@ -134,7 +191,7 @@ export class Relay {
   // every client's state. It is how the fleet view knows what each teammate's
   // AI is doing on which machine.
   sendContext(context) {
-    this.send("context_updated", { context });
+    this.sendLatest("context_updated", { context }, "context");
   }
 
   async members() {

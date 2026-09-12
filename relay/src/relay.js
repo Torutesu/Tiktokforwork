@@ -528,6 +528,18 @@ export class OrgRelay {
         const localized = await localizeCard(current, { provider, locale, allowance });
         if (localized) { current = localized; changed = true; }
         if (changed) {
+          // This ran after the broadcast, and the card may have moved on
+          // while the model was answering — an agent attaching evidence, a
+          // client deciding. Save the filing and the translation onto the
+          // card as it is now, not onto the copy this started from.
+          const fresh = await getCard(this.db, orgId, card.id);
+          if (fresh) {
+            current = {
+              ...fresh,
+              ...(current.business && !fresh.business ? { business: current.business } : {}),
+              ...(current.localized ? { localized: { ...(fresh.localized || {}), ...current.localized } } : {}),
+            };
+          }
           await saveCard(this.db, orgId, current);
           const { forEveryone } = upsertEvents(current, { isNew: false });
           for (const ev of forEveryone) this.broadcast(orgId, ev);

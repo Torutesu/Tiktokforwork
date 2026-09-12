@@ -48,9 +48,12 @@ async function preflight() {
 // ------------------------------------------------- evidence on the card
 
 /// A running record of what the AI did, written to the card as it happens.
-function tracker(card) {
+/// `resume` continues an existing timeline (the execution steps after the
+/// dry-run's) instead of starting a fresh one.
+function tracker(card, { resume = false } = {}) {
   const started = new Date().toISOString();
-  let timeline = [];
+  const known = relay.state.cardsById[card.id]?.evidence || card.evidence || {};
+  let timeline = resume ? [...(known.timeline || [])] : [];
   const push = (label, detail, extra = {}) => {
     // The previous step is done the moment the next one starts.
     timeline = timeline.map((s) => (s.status === "running" ? { ...s, status: "done" } : s));
@@ -62,13 +65,28 @@ function tracker(card) {
   };
   const write = (patch) => {
     const latest = relay.state.cardsById[card.id] || card;
-    const evidence = { ...(latest.evidence || {}), startedAt: (latest.evidence || {}).startedAt || started, ...patch, timeline };
+    // The dry-run this process ran is the truth about it, whatever copy of
+    // the card the relay last broadcast: two quick updates can cross a
+    // deferred re-save on the relay and the later one lose a field.
+    const dry = dryRuns.get(card.id) || (latest.evidence || {}).dryRun;
+    const evidence = { ...(latest.evidence || {}), startedAt: (latest.evidence || {}).startedAt || started, ...(dry ? { dryRun: dry } : {}), ...patch, timeline };
     relay.attachEvidence(latest, evidence, bits(evidence));
     publishStatus();
   };
   const finish = (patch = {}) => {
     timeline = timeline.map((s) => (s.status === "running" ? { ...s, status: "done" } : s));
     write({ status: "done", finishedAt: new Date().toISOString(), ...patch });
+    // Settle: a few seconds later, if the relay's copy lost anything to a
+    // crossing re-save, write the whole evidence once more.
+    setTimeout(() => {
+      const latest = relay.state.cardsById[card.id];
+      const ev = latest?.evidence || {};
+      const dry = dryRuns.get(card.id);
+      if ((dry && !ev.dryRun) || (patch.execution && !ev.execution) || (ev.timeline || []).length < timeline.length) {
+        log(`re-asserting evidence on ${card.id}`);
+        write({ status: ev.status || "done", finishedAt: ev.finishedAt || new Date().toISOString(), ...patch });
+      }
+    }, 5000);
   };
   return { push, write, finish };
 }
@@ -181,14 +199,13 @@ async function execute(card, decision) {
     return;
   }
   if (!dry || dry.status === "error") return;
-  const track = tracker(card);
+  const track = tracker(card, { resume: true });
   try {
     const exec = await daytona.pushAndOpenPR(card, dry, {
       title: card.title,
       body: `${card.summary || ""}\n\nApproved by ${relay.userId} in TikTok for Work. Verified in Daytona sandbox ${dry.sandboxId} (forked from ${dry.deskId}): ${dry.tests?.passed ?? 0} tests passed.${dry.previewUrl ? `\nPreview: ${dry.previewUrl}` : ""}\n\nDecision: ${card.id}`,
       onStep: (label, detail, extra = {}) => track.push(label, detail, extra),
     });
-    dryRuns.delete(card.id);
     done += 1;
     neo4j.recordPR(card.id, exec.prUrl).catch((e) => log("neo4j PR record failed", e.message));
     track.finish({ execution: exec });

@@ -196,10 +196,18 @@ evidence panel, decision graph, fleet screen, demo mode; agent with desk,
 fork, edits, tests, preview, push, PR, result card; Neo4j schema, seeding,
 precedent and collision queries, live graph publishing.
 
-Verified end to end: agent ⇄ deployed relay ⇄ Neo4j (local Community 5.26
-over the HTTP Query API), cards seeded and the neighbourhood published.
-Daytona calls are written against the SDK's type definitions and run on the
-day with an API key.
+Verified end to end on real infrastructure: a card sent through the deployed
+relay reaches the recipient's agent, which answers from Neo4j (precedent and
+collisions), boots a sandbox from its Daytona desk's snapshot in 4–6 s, runs
+the demo site's 12 tests, serves a signed preview link, and writes it all on
+the card in about 10 s. The approval is detected from the relay's state
+patch and the execution steps continue the same timeline; with GitHub
+credentials the tested branch is pushed and the pull request opened.
+
+A note on forks: `daytona.fork()` is not offered on every plan, so the desk
+is snapshotted once (`sandbox.createSnapshot`) and per-decision sandboxes
+boot from that snapshot with the checkout and dependencies already there. A
+plan with forks uses them automatically.
 
 Next: blast radius (which other open decisions an approval changes), several
 forks per decision trying alternatives in parallel, dry-runs for non-code
