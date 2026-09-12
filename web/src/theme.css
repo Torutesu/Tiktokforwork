@@ -516,3 +516,16 @@
   .tab.on { background: #17171a; box-shadow: none; }
   .feed, .screen { background: #08080a; }
 }
+
+/* Dark mode, decided once and last. The desktop layout paints a light
+   "plaster" desk behind the app; in dark mode that desk must be dark too,
+   on every screen — the welcome and sign-in screens are not inside the
+   shell, and used to keep the light desk under dark-mode text. */
+:root { color-scheme: light dark; }
+@media (prefers-color-scheme: dark) {
+  html:root, body { background: #0e0e11; color: #ededef; }
+  .screen, .screen:not(.shell .screen), .screen-head, .screen-body, .screen-foot { background: #0e0e11; }
+}
+@media (min-width: 1080px) and (prefers-color-scheme: dark) {
+  html:root, body, .feed, .screen, .screen:not(.shell .screen), .screen-head, .screen-body, .screen-foot { background: #08080a; }
+}

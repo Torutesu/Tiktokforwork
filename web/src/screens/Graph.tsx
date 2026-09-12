@@ -107,7 +107,9 @@ export const Graph: React.FC<Props> = ({ state, focusCardId, onOpenCard, onClose
     setView({ k, x: e.clientX - rect.left - p.x * k, y: e.clientY - rect.top - p.y * k })
   }
   const onPointerDown = (e: React.PointerEvent, node?: SimNode) => {
-    ;(e.target as Element).setPointerCapture?.(e.pointerId)
+    // A synthetic pointer event (tests, some assistive tools) has no active
+    // pointer to capture; dragging still works without the capture.
+    try { (e.target as Element).setPointerCapture?.(e.pointerId) } catch { /* no active pointer */ }
     if (node) {
       node.fx = node.x; node.fy = node.y
       sim.current?.alphaTarget(0.25).restart()
