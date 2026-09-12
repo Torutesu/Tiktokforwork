@@ -1,6 +1,6 @@
 # Publish the web feed to GitHub Pages on every push to main that touches it.
-# Settings → Pages → Source must be "GitHub Actions" once; until then the
-# gh-pages branch (pushed by hand from a build) serves the site.
+# Builds web/ and pushes the result to the gh-pages branch, which Pages serves
+# at https://torutesu.github.io/Tiktokforwork/ — no repository setting needed.
 name: Deploy web
 
 on:
@@ -10,16 +10,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -32,20 +30,19 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       - run: npm run build
         env:
           VITE_BASE: /Tiktokforwork/
           VITE_API_HOST: tiktokforwork.torubj0904.workers.dev
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: web/dist
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Push to gh-pages
+        run: |
+          touch dist/.nojekyll
+          cd dist
+          git init -q
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Publish the web feed from ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:gh-pages
