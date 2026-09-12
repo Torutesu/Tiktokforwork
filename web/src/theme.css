@@ -529,3 +529,53 @@
 @media (min-width: 1080px) and (prefers-color-scheme: dark) {
   html:root, body, .feed, .screen, .screen:not(.shell .screen), .screen-head, .screen-body, .screen-foot { background: #08080a; }
 }
+
+/* Desktop: the rail on the left, one centred column beside it, and on a
+   wide window a third column with the team's AIs. The column is centred in
+   the space the rail leaves, not in the window — otherwise it hugs the rail
+   and a 1920px screen is three quarters empty. */
+@media (min-width: 1080px) {
+  .shell .topbar {
+    left: 216px; padding-left: 28px; padding-right: 28px;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 720px) minmax(0, 1fr); align-items: center;
+  }
+  .shell .topbar .mode-switch { grid-column: 2; grid-row: 1; justify-self: start; }
+  .shell .topbar .topbar-right { grid-column: 2; grid-row: 1; justify-self: end; }
+  .shell .toasts { left: 216px; }
+  .page { justify-content: center; }
+  .page-inner { width: min(100%, 720px); }
+  .classic-inner { width: min(100%, 720px); }
+  .shell .screen:not(.graph-screen) .screen-head,
+  .shell .screen:not(.graph-screen) .screen-body,
+  .shell .screen:not(.graph-screen) .screen-foot { max-width: 720px; margin-left: auto; margin-right: auto; }
+  .shell .graph-screen .screen-head, .shell .graph-legend { max-width: none; padding-left: 28px; padding-right: 28px; }
+  .shell .graph-screen .node-panel { right: 24px; width: 360px; }
+}
+@media (min-width: 1360px) {
+  .fleet-aside { display: flex; }
+  .shell .topbar, .shell .feed, .shell .classic, .shell .screen:not(.graph-screen), .shell .toasts { right: 300px; }
+  .shell .graph-screen { right: 0; }
+}
+@media (min-width: 1360px) and (prefers-color-scheme: dark) { .fleet-aside { background: #08080a; } }
+@media (min-width: 1360px) and (prefers-color-scheme: light) { .fleet-aside { background: var(--plaster); } }
+
+/* Dark mode for the card's text and chips, decided last: the legacy card
+   stylesheet shares these class names and painted light-mode colours over
+   the feed's dark rules. */
+@media (prefers-color-scheme: dark) {
+  .card .card-title { color: #ededef; }
+  .card .card-summary { color: #a8a8b2; }
+  .card .card-context { background: #1b1b1f; color: #ededef; }
+  .card .card-context li { background: #151518; border-color: #303038; }
+  .card .ctx-detail { color: #ededef; }
+  .card .ctx-label { color: #8b8b93; }
+  .mode-switch button.on .mode-count { background: #ededef; color: #0b0b0d; }
+}
+@media (min-width: 1080px) and (prefers-color-scheme: dark) {
+  .tab.compose, .tab.compose::after { color: #f5f5f7; }
+  .tab.compose:hover { background-color: #17171a; }
+  .tab.compose .fab-face { box-shadow: inset 0 0 0 5px #08080a; }
+  .tab.on { background: #17171a; }
+  .tab.on::after, .tab:hover::after { color: #f5f5f7; }
+  .fleet-aside { background: #08080a; }
+}

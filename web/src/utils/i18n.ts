@@ -45,6 +45,7 @@ const ja: Dict = {
   'Pull request #{n} is open': 'プルリクエスト #{n} を作成済み',
   "Your team's AIs": 'チームのAI',
   'agents online': 'AI が稼働中',
+  'waiting on you': '件があなた待ち',
   sandboxes: 'サンドボックス',
   'decisions being checked': '検証中の判断',
   'fleet.lede': 'メンバーごとのAIが自分のクラウドマシン（デスク）を持ち、判断が届くたびにそこから複製したサンドボックスで試してから、あなたに見せます。',

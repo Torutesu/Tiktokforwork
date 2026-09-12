@@ -10,6 +10,7 @@ import { RecordSheet } from './RecordSheet'
 import { Team } from '../screens/Team'
 import { Agents } from '../screens/Agents'
 import { Graph } from '../screens/Graph'
+import { FleetAside } from './FleetAside'
 import { Tools } from '../screens/Tools'
 import { History } from '../screens/History'
 import { NotificationSettings } from '../screens/NotificationSettings'
@@ -276,6 +277,14 @@ export const Dashboard: React.FC<Props> = ({ userId, orgId, relayUrl, sessionTok
           onNudge={handleNudge}
         />
       )}
+
+      <FleetAside
+        state={state}
+        userId={userId}
+        onOpenAgents={() => setScreen('agents')}
+        onOpenGraph={() => { setGraphFocus(null); setScreen('graph') }}
+        onOpenCard={(id) => { setScreen(null); setFocusCardId(id); switchMode('cards') }}
+      />
 
       <header className="topbar">
         <div className="mode-switch" role="tablist" aria-label={t('View')}>

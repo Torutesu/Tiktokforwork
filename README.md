@@ -25,6 +25,8 @@
   <img src="docs/media/04b-fleet.png" width="215" alt="Your team's AIs and their machines">
 </p>
 
+<p align="center"><img src="docs/media/desktop-feed.png" width="880" alt="On a desktop: the rail, the feed, and your team's AIs at work beside it"></p>
+
 ## 30 seconds
 
 | You | Your AI, before you look | You | Your AI, after you swipe |

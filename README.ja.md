@@ -20,6 +20,8 @@
   <img src="docs/media/04b-fleet.png" width="215" alt="チームの AI とそのマシン">
 </p>
 
+<p align="center"><img src="docs/media/desktop-feed.png" width="880" alt="PC では、レール・フィード・チームの AI の稼働状況が並びます"></p>
+
 ## 30 秒で
 
 | あなた | あなたが見る前に AI が | あなた | スワイプの後に AI が |
