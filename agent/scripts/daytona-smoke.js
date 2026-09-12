@@ -1,7 +1,7 @@
 import { Daytona } from "@daytonaio/sdk";
 import "../src/env.js";
 const t0 = Date.now();
-const d = new Daytona({ apiKey: process.env.DAYTONA_API_KEY });
+const d = new Daytona({ apiKey: process.env.DAYTONA_API_KEY, apiUrl: process.env.DAYTONA_API_URL || "https://app.daytona.io/api" });
 const s = await d.create({ language: "typescript" });
 console.log("created", s.id, "in", Date.now() - t0, "ms");
 const r = await s.process.executeCommand("node -v && git --version && echo hello-from-the-sandbox");

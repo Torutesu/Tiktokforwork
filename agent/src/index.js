@@ -17,7 +17,7 @@ import { env } from "./env.js";
 import { Relay } from "./relay.js";
 import * as neo4j from "./neo4j.js";
 import * as daytona from "./daytona.js";
-import { summarizeGraph, chat } from "./llm.js";
+import { summarizeGraph, chat, hasModel } from "./llm.js";
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const dryRuns = new Map(); // cardId → dryRun result
@@ -28,13 +28,18 @@ let done = 0;
 // ------------------------------------------------------------ preflight
 
 async function preflight() {
-  for (const k of ["DAYTONA_API_KEY", "NEO4J_URI", "NEO4J_PASSWORD", "LLM_API_KEY", "TARGET_REPO", "GITHUB_TOKEN"]) env(k);
+  for (const k of ["DAYTONA_API_KEY", "NEO4J_URI", "NEO4J_PASSWORD", "TARGET_REPO"]) env(k);
   let t = Date.now();
   await neo4j.run("RETURN 1");
   log(`neo4j ok (${Date.now() - t}ms)`);
-  t = Date.now();
-  await chat([{ role: "user", content: "ping" }], { maxTokens: 2 });
-  log(`model ok: ${env("LLM_MODEL")} @ ${env("LLM_BASE_URL")} (${Date.now() - t}ms)`);
+  if (hasModel()) {
+    t = Date.now();
+    await chat([{ role: "user", content: "ping" }], { maxTokens: 2 });
+    log(`model ok: ${env("LLM_MODEL")} @ ${env("LLM_BASE_URL")} (${Date.now() - t}ms)`);
+  } else {
+    log("model: none configured — graph summaries from a template, dry-runs without edits");
+  }
+  if (!env("GITHUB_TOKEN", "")) log("github: no token — approvals will test but cannot push a branch or open a PR");
   t = Date.now();
   await daytona.ping();
   log(`daytona ok (${Date.now() - t}ms)`);

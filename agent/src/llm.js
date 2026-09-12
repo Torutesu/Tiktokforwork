@@ -1,6 +1,8 @@
 // One OpenAI-compatible chat call. LLM_BASE_URL is any /v1 endpoint that
 // speaks chat/completions (OpenAI by default); LLM_MODEL picks the model.
-import { env } from "./env.js";
+import { env, has } from "./env.js";
+
+export const hasModel = () => has("LLM_API_KEY");
 
 export async function chat(messages, { json = false, temperature = 0.1, maxTokens = 1200 } = {}) {
   const base = env("LLM_BASE_URL").replace(/\/$/, "");
@@ -23,6 +25,7 @@ export async function chat(messages, { json = false, temperature = 0.1, maxToken
 
 // Given a few files, ask the model for surgical edits. Returns [{ path, find, replace }].
 export async function proposeEdits(instruction, files) {
+  if (!hasModel()) return { edits: [], summary: "" };
   const out = await chat([
     {
       role: "system",
@@ -38,8 +41,30 @@ export async function proposeEdits(instruction, files) {
 // Turn graph rows into one line the recipient can read at a glance.
 export async function summarizeGraph({ related, conflicts, locale = "ja" }) {
   if (!related.length && !conflicts.length) return locale === "ja" ? "この事業に関する過去の判断はまだありません" : "No prior decisions on this business yet";
+  if (!hasModel()) return templateSummary({ related, conflicts, locale });
   return chat([
     { role: "system", content: `Summarize in ONE short sentence, in ${locale === "ja" ? "Japanese" : "English"}, for a busy approver. No preamble.` },
     { role: "user", content: JSON.stringify({ related, conflicts }) },
   ], { maxTokens: 120 });
+}
+
+// The same sentence, written by hand from the rows, when no model is configured.
+function templateSummary({ related, conflicts, locale }) {
+  const who = (l) => String(l || "").replace(/^(u:|email:)/, "").split("@")[0];
+  const approved = related.filter((r) => r.action === "approve").length;
+  const last = related[0];
+  const ja = locale === "ja";
+  const parts = [];
+  if (related.length) {
+    parts.push(ja
+      ? `この事業の直近 ${related.length} 件のうち ${approved} 件が承認${last?.by ? `、最新は ${who(last.by)} の判断` : ""}`
+      : `${approved} of the last ${related.length} decisions on this business were approved${last?.by ? `, most recently by ${who(last.by)}` : ""}`);
+  }
+  if (conflicts.length) {
+    const c = conflicts[0];
+    parts.push(ja
+      ? `${who(c.recipient)} の未決カード「${c.title}」が同じリポジトリに触れている`
+      : `${who(c.recipient)} has an open card touching the same repository: "${c.title}"`);
+  }
+  return parts.join(ja ? "。" : ". ") + (ja ? "。" : ".");
 }

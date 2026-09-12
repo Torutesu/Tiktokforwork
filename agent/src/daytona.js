@@ -3,9 +3,11 @@
 //   desk   — one persistent sandbox per agent (`desk-<user>`), with the
 //            repository cloned and dependencies installed. It is where the
 //            agent lives (scripts/deploy-desk.js runs the runner inside it).
-//   fork   — one sandbox per card, forked from the desk in well under a
-//            second with the checkout and node_modules already in place, so
-//            a dry-run is edit + test, not clone + install.
+//   fork   — one sandbox per card, copied from the desk with the checkout
+//            and node_modules already in place, so a dry-run is edit + test,
+//            not clone + install. Three ways to copy, best first: a fork of
+//            the desk (plans that support it), a sandbox booted from the
+//            desk's snapshot, and, failing both, a fresh clone.
 //   preview — the changed app served from the fork, reachable through
 //            Daytona's preview link, so the approver can click and see it.
 //
@@ -24,7 +26,7 @@ const WORK_DIR = () => (env("TARGET_DIR", "") ? `${REPO_DIR}/${env("TARGET_DIR",
 const CACHE = new URL("../.cache/dryrun.json", import.meta.url);
 
 let client;
-export const daytona = () => (client ||= new Daytona({ apiKey: env("DAYTONA_API_KEY") }));
+export const daytona = () => (client ||= new Daytona({ apiKey: env("DAYTONA_API_KEY"), apiUrl: env("DAYTONA_API_URL", "https://app.daytona.io/api") }));
 const forks = new Map(); // cardId → { sandbox, branch }
 const noop = () => {};
 
@@ -40,6 +42,25 @@ export async function ping() {
 // ---------------------------------------------------------------- the desk
 
 export const deskName = (user) => `desk-${String(user).replace(/[^a-z0-9-]/gi, "-").toLowerCase()}`;
+const snapshotName = (desk) => `${desk.name}-snapshot`;
+
+/// A snapshot of the warmed desk, taken once, so per-card sandboxes boot
+/// with the repository and its dependencies already there.
+async function ensureSnapshot(desk, { log = noop, onStep = noop } = {}) {
+  const name = snapshotName(desk);
+  if (desk.labels?.snapshot === name) return name;
+  onStep("Snapshotting the desk", "every sandbox for a decision boots from it");
+  const t0 = Date.now();
+  try {
+    await desk.createSnapshot(name, 600);
+    await desk.setLabels({ ...(desk.labels || {}), snapshot: name });
+    log(`snapshot ${name} in ${Date.now() - t0} ms`);
+    return name;
+  } catch (err) {
+    log("snapshot failed", err.message);
+    return null;
+  }
+}
 
 /// The agent's own machine. Found by name, created once, never auto-stopped.
 export async function ensureDesk(user, { log = noop, onStep = noop } = {}) {
@@ -49,9 +70,10 @@ export async function ensureDesk(user, { log = noop, onStep = noop } = {}) {
     const existing = await daytona().get(name);
     if (existing.state === "stopped") { onStep("Waking the desk"); await daytona().start(existing); }
     log(`desk ${name} = ${existing.id} (${existing.state})`);
+    await ensureSnapshot(existing, { log, onStep });
     return existing;
-  } catch {
-    // no desk yet
+  } catch (err) {
+    if (!/not found|404/i.test(String(err?.message || err))) log("desk lookup:", err?.message || err);
   }
   onStep("Creating a desk", "one persistent sandbox for this agent");
   const desk = await daytona().create({
@@ -66,6 +88,7 @@ export async function ensureDesk(user, { log = noop, onStep = noop } = {}) {
   onStep("Installing dependencies once", "every fork inherits them");
   await sh(desk, "([ -f package-lock.json ] && npm ci --silent) || npm install --silent || true", 600);
   log(`desk ${name} ready: ${desk.id}`);
+  await ensureSnapshot(desk, { log, onStep });
   return desk;
 }
 
@@ -73,24 +96,43 @@ export async function ensureDesk(user, { log = noop, onStep = noop } = {}) {
 
 async function workSandbox(desk, card, onStep) {
   const t0 = Date.now();
+  const labels = { app: "tiktok-for-work", role: "card", card: card.id, agent: desk.labels?.agent || "" };
+  const name = `card-${card.id.slice(-8)}-${Date.now().toString(36)}`;
+  // 1. A fork: an instant copy of the desk as it is right now.
   try {
-    const fork = await daytona().fork(desk, { name: `card-${card.id.slice(-8)}-${Date.now().toString(36)}` });
-    await fork.setLabels({ app: "tiktok-for-work", role: "card", card: card.id, agent: desk.labels?.agent || "" }).catch(noop);
-    onStep("Forked the desk", `${Date.now() - t0} ms · checkout and dependencies already there`, { bootMs: Date.now() - t0 });
-    return { sandbox: fork, bootMs: Date.now() - t0, forked: true };
+    const fork = await daytona().fork(desk, { name });
+    await fork.setLabels(labels).catch(noop);
+    onStep("Forked my desk into a fresh sandbox", `${Date.now() - t0} ms · checkout and dependencies already there`, { bootMs: Date.now() - t0 });
+    return { sandbox: fork, bootMs: Date.now() - t0, forked: true, via: "fork" };
   } catch (err) {
-    // A plan without forks: a fresh sandbox and a clone still work, just slower.
-    const sandbox = await daytona().create({ language: "typescript", labels: { app: "tiktok-for-work", role: "card", card: card.id } });
-    onStep("Created a sandbox", `${Date.now() - t0} ms (fork unavailable: ${String(err?.message || err).slice(0, 60)})`, { bootMs: Date.now() - t0 });
-    await sandbox.git.clone(`https://github.com/${env("TARGET_REPO")}.git`, REPO_DIR, undefined, undefined, env("GITHUB_USER", ""), env("GITHUB_TOKEN", ""));
-    await sh(sandbox, "([ -f package-lock.json ] && npm ci --silent) || npm install --silent || true", 600);
-    return { sandbox, bootMs: Date.now() - t0, forked: false };
+    if (!/not supported/i.test(String(err?.message || err))) onStep("Fork unavailable", String(err?.message || err).slice(0, 80));
   }
+  // 2. The desk's snapshot: the same checkout and node_modules, booted fresh.
+  const snap = desk.labels?.snapshot;
+  if (snap) {
+    try {
+      const sandbox = await daytona().create({ snapshot: snap, name, labels }, { timeout: 120 });
+      await sh(sandbox, "git fetch -q origin && git reset -q --hard origin/HEAD 2>/dev/null || git pull -q --ff-only || true", 60, REPO_DIR);
+      onStep("Booted a sandbox from my desk's snapshot", `${Date.now() - t0} ms · checkout and dependencies already there`, { bootMs: Date.now() - t0 });
+      return { sandbox, bootMs: Date.now() - t0, forked: true, via: "snapshot" };
+    } catch (err) {
+      onStep("Snapshot boot unavailable", String(err?.message || err).slice(0, 80));
+    }
+  }
+  // 3. A fresh sandbox and a clone: always works, just slower on a heavy repo.
+  const sandbox = await daytona().create({ language: "typescript", name, labels });
+  onStep("Created a sandbox", `${Date.now() - t0} ms`, { bootMs: Date.now() - t0 });
+  await sandbox.git.clone(`https://github.com/${env("TARGET_REPO")}.git`, REPO_DIR, undefined, undefined, env("GITHUB_USER", ""), env("GITHUB_TOKEN", ""));
+  await sh(sandbox, "([ -f package-lock.json ] && npm ci --silent) || npm install --silent || true", 600);
+  return { sandbox, bootMs: Date.now() - t0, forked: false, via: "clone" };
 }
 
+// jest/vitest ("14 passed"), mocha ("14 passing"), node --test in tap
+// ("# pass 14") and spec ("ℹ pass 14") form.
 function parseTests(out) {
-  const passed = Number((out.match(/(\d+) (?:passed|passing)|^# pass (\d+)/m) || []).slice(1).find(Boolean) || 0);
-  const failed = Number((out.match(/(\d+) (?:failed|failing)|^# fail (\d+)/m) || []).slice(1).find(Boolean) || 0);
+  const num = (re) => { const m = out.match(re); return m ? Number(m.slice(1).find((g) => g !== undefined) || 0) : null; };
+  const passed = num(/(\d+) (?:passed|passing)\b/) ?? num(/^\s*(?:#|ℹ)\s*pass\s+(\d+)/m) ?? 0;
+  const failed = num(/(\d+) (?:failed|failing)\b/) ?? num(/^\s*(?:#|ℹ)\s*fail\s+(\d+)/m) ?? 0;
   return { passed, failed, raw: out.split("\n").slice(-40).join("\n") };
 }
 function parseShortstat(out) {
@@ -139,9 +181,17 @@ async function preview(sandbox, onStep) {
   if (!cmd) return undefined;
   await sh(sandbox, `nohup sh -c ${JSON.stringify(cmd)} > /tmp/preview.log 2>&1 &`, 10);
   await new Promise((r) => setTimeout(r, Number(env("PREVIEW_WAIT_MS", "4000"))));
-  const link = await sandbox.getPreviewLink(port);
-  onStep("Started a preview of the change", link.url, { layer: "daytona" });
-  return link.url;
+  // A signed URL opens in a plain browser tab; the bare preview link needs
+  // the sandbox's preview token as a header, which a click cannot send.
+  let url;
+  try {
+    const signed = await sandbox.getSignedPreviewUrl(port, Number(env("PREVIEW_TTL_S", "7200")));
+    url = signed.url;
+  } catch {
+    url = (await sandbox.getPreviewLink(port)).url;
+  }
+  onStep("Started a preview of the change", url, { layer: "daytona" });
+  return url;
 }
 
 /**
@@ -156,11 +206,12 @@ export async function dryRun(card, desk, { instruction = card.sourceInstruction 
 
   const t0 = Date.now();
   const branch = `agent/card-${card.id.slice(-8)}`;
-  const { sandbox, bootMs, forked } = await workSandbox(desk, card, onStep);
+  const { sandbox, bootMs, forked, via } = await workSandbox(desk, card, onStep);
   forks.set(card.id, { sandbox, branch });
 
   try {
     await sh(sandbox, `git checkout -q -b ${branch}`, 30, REPO_DIR);
+    const base = (await sh(sandbox, "git rev-parse HEAD", 30, REPO_DIR)).out.trim();
     let editSummary = "", files = [];
     if (withEdits) ({ summary: editSummary, applied: files } = await applyEdits(sandbox, instruction, onStep));
 
@@ -168,11 +219,11 @@ export async function dryRun(card, desk, { instruction = card.sourceInstruction 
     const test = await sh(sandbox, "npm test --silent 2>&1 || true", 300);
     const tests = parseTests(test.out);
     onStep("Ran the test suite", `npm test · ${tests.passed} passed, ${tests.failed} failed`);
-    const stat = await sh(sandbox, "git diff --shortstat HEAD~1 2>/dev/null || echo '0 files changed'", 30, REPO_DIR);
+    const stat = await sh(sandbox, `git diff --shortstat ${base} HEAD 2>/dev/null || echo '0 files changed'`, 30, REPO_DIR);
     const previewUrl = tests.failed === 0 ? await preview(sandbox, onStep).catch((e) => { log("preview failed", e.message); return undefined; }) : undefined;
 
     const result = {
-      sandboxId: sandbox.id, deskId: desk.id, forked, bootMs, branch, ...parseShortstat(stat.out), tests, editSummary, files,
+      sandboxId: sandbox.id, deskId: desk.id, forked, via, bootMs, branch, ...parseShortstat(stat.out), tests, editSummary, files,
       previewUrl,
       status: tests.failed > 0 ? "failed" : "passed",
       durationMs: Date.now() - t0,
@@ -181,7 +232,7 @@ export async function dryRun(card, desk, { instruction = card.sourceInstruction 
     return result;
   } catch (err) {
     log("dry-run error", err?.message || err);
-    return { sandboxId: sandbox.id, deskId: desk.id, forked, bootMs, branch, status: "error", error: String(err?.message || err), durationMs: Date.now() - t0 };
+    return { sandboxId: sandbox.id, deskId: desk.id, forked, via, bootMs, branch, status: "error", error: String(err?.message || err), durationMs: Date.now() - t0 };
   }
 }
 
