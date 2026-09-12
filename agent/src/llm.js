@@ -1,5 +1,7 @@
-// One OpenAI-compatible chat call. Point LLM_BASE_URL at the Nosana deployment
-// (vLLM / Ollama expose /v1/chat/completions) or at OpenAI as the fallback.
+// One OpenAI-compatible chat call against the model running on Nosana.
+// A Nosana job (vLLM or Ollama template) exposes /v1/chat/completions; that
+// URL is LLM_BASE_URL. There is deliberately no other provider in this file:
+// the decision data never leaves the deployment we control.
 import { env } from "./env.js";
 
 export async function chat(messages, { json = false, temperature = 0.1, maxTokens = 1200 } = {}) {

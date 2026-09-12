@@ -3,10 +3,14 @@
 // sandbox, anything else deletes it.
 import { Daytona } from "@daytonaio/sdk";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { env, has } from "./env.js";
+import { env } from "./env.js";
 import { proposeEdits } from "./llm.js";
 
-export const enabled = () => has("DAYTONA_API_KEY");
+// Cheap liveness check for preflight: list is enough to prove the key works.
+export async function ping() {
+  // list() is an async iterator; pulling one item is what actually hits the API.
+  for await (const _ of daytona().list()) break;
+}
 const REPO_DIR = "/home/daytona/repo";
 const CACHE = new URL("../.cache/dryrun.json", import.meta.url);
 

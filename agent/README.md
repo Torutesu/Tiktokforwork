@@ -4,6 +4,10 @@ HonmaruAI の relay に「ある受信者の AI」として参加し、届いた
 Daytona の dry-run と Neo4j の文脈を証拠として付け、承認されたら PR を開く。
 worker も iOS も触らない。設計は [../HACKATHON.md](../HACKATHON.md)。
 
+**3 スポンサーは前提。** 起動時に Daytona・Neo4j・Nosana の 3 つへ疎通確認
+（preflight）を行い、1 つでも応答しなければ起動しない。「無ければスキップ」の
+分岐は意図的に置いていない。
+
 ## 起動
 
 ```bash
@@ -12,9 +16,18 @@ npm install                 # 依存は @daytonaio/sdk だけ。Node 22 以上
 cp .env.example .env        # 値を埋める（下記）
 npm run smoke:daytona       # create → exec → delete が通るか
 npm run smoke:neo4j         # RETURN 1 と制約作成
-npm run smoke:llm           # Nosana / OpenAI 互換エンドポイント
-npm start
+npm run smoke:llm           # Nosana 上のモデル（OpenAI 互換 /v1）
+npm start                   # preflight → relay に join
 ```
+
+## Nosana のデプロイ
+
+1. Nosana ダッシュボードで vLLM または Ollama のテンプレートを選び、
+   `Qwen/Qwen2.5-Coder-7B-Instruct`（編集提案とグラフ要約の両方に十分）を指定してデプロイ。
+2. ジョブの公開 URL に `/v1` を付けて `LLM_BASE_URL` に、モデル名を `LLM_MODEL` に。
+3. `npm run smoke:llm` が `ready` を返せば OK。ランナーが行う LLM 呼び出しは
+   すべてここに行く（パッチ提案・グラフ要約）。worker 側のルーティングも同じ
+   エンドポイントに向ける手順は [../patches/worker-provider-nosana.md](../patches/worker-provider-nosana.md)。
 
 ## セッショントークンの取り方
 
@@ -49,4 +62,5 @@ relay は `card_updated` を受信者本人にしか許さないので、ラン�
   `git.clone(url, path, branch?, commitId?, username?, password?)`、`fs.uploadFile(Buffer, remotePath)`、
   `sandbox.delete()`、`daytona.create({ language })`
 - ⚠️ 未実行（API キーがこの環境に無い）: 実際の create → exec → delete は `npm run smoke:daytona` で当日確認
-- ⚠️ Neo4j Aura の Query API パス `/db/neo4j/query/v2` は `npm run smoke:neo4j` で確認。無ければ `neo4j-driver`（Bolt）に切替し、`run()` だけ差し替える
+- ⚠️ Neo4j Aura の Query API パス `/db/neo4j/query/v2` は `npm run smoke:neo4j` で確認。無ければ `neo4j-driver`（Bolt）に切替し、`run()` だけ差し替える（Neo4j を外す選択肢はない）
+- ⚠️ Nosana のジョブ URL は実行ごとに変わる。当日デプロイしたら `.env` を更新して `smoke:llm`

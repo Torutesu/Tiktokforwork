@@ -5,6 +5,11 @@
 
 ハッキング時間は 14:00–16:00 の 2 時間。**worker（Cloudflare）と iOS は一切触らない。** 新規ディレクトリ `agent/`（Node 22 の単一プロセス）に 3 スポンサーの統合を全部集約し、既存の relay プロトコル（AG-UI over WebSocket）に「受信者の AI」として参加する。デプロイ不要、ラップトップで動く。
 
+**前提 2 つ。**
+
+1. **TikTok for Work のコンセプトはずらさない。** 人は自分の AI とだけ話す。判断は縦フィードの Decision Card として届く。スワイプで決める。決まったことは GitHub に同期される。今日足すのは、そのカードに「証拠」と「実行」が同梱されることだけで、画面も操作も増えない。
+2. **Daytona・Neo4j・Nosana は「あれば使う」ではなく「無いと動かない」。** ランナーは起動時に 3 つへ疎通確認し、1 つでも落ちていれば起動しない。フォールバックは「スポンサーを外す」方向には一切置かず、「スポンサーにやらせる仕事を小さくする」方向にだけ置く（§9）。
+
 ---
 
 ## 1. 第一原理から: 本質的な価値は何か
@@ -181,15 +186,15 @@ RETURN o.id, o.title, p.login
 
 ### 7.4 Nosana（`agent/src/llm.js`）
 
-OpenAI 互換の `POST {LLM_BASE_URL}/chat/completions`。Nosana ダッシュボードで vLLM / Ollama テンプレ（Qwen2.5-Coder 7B 推奨）をデプロイして得た URL を `LLM_BASE_URL` に入れるだけ。取れなかったら `LLM_BASE_URL=https://api.openai.com/v1` に戻す。**デモでは Nosana ジョブのダッシュボード画面を 1 カット見せる**（審査基準 4 の"名義だけでない"の証拠）。
+OpenAI 互換の `POST {LLM_BASE_URL}/chat/completions`。Nosana ダッシュボードで vLLM / Ollama テンプレ（Qwen2.5-Coder-7B-Instruct）をデプロイして得た URL を `LLM_BASE_URL` に入れる。ランナーの LLM 呼び出し（パッチ提案・グラフ要約）はここにしか行かない。加えて **worker 本体のルーティング・triage・翻訳・事業分類も同じエンドポイントに向ける**（`patches/worker-provider-nosana.md`、`provider.js` に 9 行 + secret 2 つ + deploy）。これで「製品のすべての推論が Nosana 上」と言える。**デモでは Nosana ジョブのダッシュボード画面を 1 カット見せる**（審査基準 4 の"名義だけでない"の証拠）。
 
 ## 8. 14:00–16:00 のタスク分解（4 人想定）
 
 | 時刻 | A: ランナー/relay | B: Daytona | C: Neo4j | D: デモ/データ |
 |---|---|---|---|---|
-| 14:00 | `agent/` を clone、`npm i`、Tanaka と Toru のセッショントークンを web-react の localStorage から取り `.env` に | Daytona API key、`node scripts/daytona-smoke.js` で create → exec → delete が通るまで | Aura Free を作り Query API に `RETURN 1` が通るまで | デモ用リポジトリ（小さな予約サイト + 5 個の jest テスト）を用意、Tanaka にコラボレータ権限 |
+| 14:00 | `agent/` を clone、`npm i`、Tanaka と Toru のセッショントークンを web-react の localStorage から取り `.env` に | Daytona API key、`npm run smoke:daytona` で create → exec → delete が通るまで | Aura Free を作り `npm run smoke:neo4j` が通るまで | **最初に Nosana のジョブを投げる**（起動待ちが一番長い）。待つ間にデモ用リポジトリ（小さな予約サイト + `node --test` 5 件）を用意、Tanaka にコラボレータ権限 |
 | 14:20 | ランナーが join → snapshot を受けてログに出るまで | `dryRun(card)` が clone + test の結果オブジェクトを返す | `syncSnapshot()` で snapshot の人・カードをノードに | 事業 `hotel-honmaru` に過去の決定カード 3 枚を先に作って承認しておく（グラフの見せ場の種） |
-| 14:45 | 新カード → `dryRun` → `card_updated` の結線。Tanaka の画面で証拠が浮くのを確認 | LLM 編集ステップ（P1） | `contextFor(card)` の Cypher 2 本 | Nosana にモデルをデプロイ、`LLM_BASE_URL` 差し替え |
+| 14:45 | 新カード → `dryRun` → `card_updated` の結線。Tanaka の画面で証拠が浮くのを確認 | LLM 編集ステップ（P1） | `contextFor(card)` の Cypher 2 本 | Nosana にモデルをデプロイ、`LLM_BASE_URL` 差し替え、`smoke:llm`。通ったら worker の `provider.js` パッチ + deploy |
 | 15:15 | `TOOL_CALL_RESULT` → push + PR + Toru への完了カード | PR 作成 | `recordDecision()` | デモ台本を通しで 2 回。事前実行のキャッシュを作る |
 | 15:40 | **フリーズ。** 以降は台本練習とバックアップ動画の撮影のみ | | | |
 
@@ -199,8 +204,9 @@ OpenAI 互換の `POST {LLM_BASE_URL}/chat/completions`。Nosana ダッシュボ
 |---|---|---|
 | Daytona で `npm ci` が遅い（60 秒超） | 証拠が浮くまで長い | デモ用 repo の依存を 0 に近づける（Node 標準の `node --test`）。事前実行キャッシュ |
 | セッショントークンが期限切れ | join が `sign-in-required` | web-react で再ログインして取り直す。手順を README に |
-| Neo4j Query API が Aura の版で無い | 404 | `neo4j-driver` に切替（Node なので Bolt が使える）。`neo4j.js` の関数シグネチャは変えない |
-| Nosana のデプロイが間に合わない | 15:00 時点で URL がない | OpenAI に戻し、デモでは「差し替え可能」と正直に言う。審査基準 4 は Daytona と Neo4j で満たす |
+| Neo4j Query API が Aura の版で無い | 404 | `neo4j-driver` に切替（Node なので Bolt が使える）。`neo4j.js` の関数シグネチャは変えない。Neo4j を外す選択肢はない |
+| Nosana で 7B が重い・tool calling が通らない | smoke が遅い / worker のルートがキーワードに落ちる | モデルを 1.5B〜3B に下げる。worker 側は tool calling が必要なので後回しにし、ランナーの 2 呼び出し（JSON 出力のみ）を確実に Nosana に乗せる。Nosana を外す選択肢はない |
+| Nosana のジョブが途中で止まる | preflight が落ちる | ジョブを再デプロイして `.env` の URL を差し替え。デモ直前に必ず `smoke:llm` |
 | LLM のパッチが壊れてテストが落ちる | `status: failed` | それも証拠。「落ちるとわかった上で判断できる」はむしろ主張と一致 |
 
 ## 10. このハッカソンで検証できる仮説

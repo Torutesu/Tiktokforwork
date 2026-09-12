@@ -1,9 +1,7 @@
 // Neo4j Aura over the HTTPS Query API — no driver, works anywhere fetch does.
 // If your Aura instance does not serve /db/<name>/query/v2, swap `run` for
 // neo4j-driver (Bolt works from Node) and keep every other function as is.
-import { env, has } from "./env.js";
-
-export const enabled = () => has("NEO4J_URI") && has("NEO4J_PASSWORD");
+import { env } from "./env.js";
 
 export async function run(statement, parameters = {}) {
   const db = env("NEO4J_DATABASE", "neo4j");
