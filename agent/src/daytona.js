@@ -155,24 +155,24 @@ function cachePut(key, value) {
 }
 
 async function applyEdits(sandbox, instruction, onStep) {
-  const words = instruction.split(/[\s、。,.]+/).filter((w) => w.length >= 2).slice(0, 6);
-  const grep = await sh(sandbox, `git grep -il -e ${words.map((w) => JSON.stringify(w)).join(" -e ")} -- ':!*.lock' ':!package-lock.json' ':!*.md' ':!test/*' | head -3 || true`);
+  const words = instruction.split(/[\s、。,.]+/).filter((w) => w.length >= 2).slice(0, 8);
+  const grep = await sh(sandbox, `git grep -il -e ${words.map((w) => JSON.stringify(w)).join(" -e ")} -- ':!*.lock' ':!package-lock.json' ':!*.md' ':!test/*' ':!*.test.*' | head -4 || true`);
   const paths = grep.out.split("\n").map((s) => s.trim()).filter(Boolean);
   const files = [];
   for (const p of paths) files.push({ path: p, content: (await sh(sandbox, `head -c 12000 ${JSON.stringify(p)}`)).out });
-  if (!files.length) return { applied: [], summary: "" };
-  const { edits, summary } = await proposeEdits(instruction, files);
+  if (!files.length) { onStep("No files match the instruction", words.join(" ")); return { applied: [], summary: "" }; }
+  onStep("Reading the code the instruction is about", files.map((f) => f.path).join(", "), { layer: "ai" });
+  const { files: changed, summary } = await proposeEdits(instruction, files);
   const applied = [];
-  for (const e of edits) {
-    const f = files.find((x) => x.path === e.path);
-    if (!f || !f.content.includes(e.find)) continue;
-    f.content = f.content.replace(e.find, e.replace);
-    await sandbox.fs.uploadFile(Buffer.from(f.content), `${WORK_DIR()}/${e.path}`);
-    if (!applied.includes(e.path)) applied.push(e.path);
+  for (const f of changed) {
+    await sandbox.fs.uploadFile(Buffer.from(f.content), `${WORK_DIR()}/${f.path}`);
+    applied.push(f.path);
   }
   if (applied.length) {
     await sh(sandbox, `git add -A && git commit -qm ${JSON.stringify(`Agent: ${instruction}`.slice(0, 72))} || true`, 30, REPO_DIR);
-    onStep(`Applied ${applied.length} edit${applied.length === 1 ? "" : "s"}`, applied.join(", "));
+    onStep(`Applied ${applied.length} edit${applied.length === 1 ? "" : "s"}`, applied.join(", "), { layer: "ai" });
+  } else {
+    onStep("The model proposed no change", summary.slice(0, 100), { layer: "ai" });
   }
   return { applied, summary };
 }

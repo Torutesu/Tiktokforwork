@@ -23,19 +23,27 @@ export async function chat(messages, { json = false, temperature = 0.1, maxToken
   return json ? JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")) : text;
 }
 
-// Given a few files, ask the model for surgical edits. Returns [{ path, find, replace }].
+// Given a few small files, ask the model for the changed files in full.
+// Whole files are what a model reproduces reliably; a find/replace pair is
+// one stray space away from matching nothing. Files it leaves out are
+// untouched. Returns { files: [{ path, content }], summary }.
 export async function proposeEdits(instruction, files) {
-  if (!hasModel()) return { edits: [], summary: "" };
+  if (!hasModel()) return { files: [], summary: "" };
   const out = await chat([
     {
       role: "system",
       content:
-        "You are a careful engineer. Output ONLY JSON: {\"edits\":[{\"path\":string,\"find\":string,\"replace\":string}], \"summary\":string}. " +
-        "Each `find` must be an exact substring of that file. Make the smallest change that fulfils the instruction and keeps tests passing.",
+        "You are a careful engineer making the smallest change that fulfils an instruction while keeping the tests passing. " +
+        "Output ONLY JSON: {\"files\":[{\"path\":string,\"content\":string}],\"summary\":string}. " +
+        "Include a file only if you change it, and give its COMPLETE new content. Never change test files. Keep the code style.",
     },
     { role: "user", content: `Instruction: ${instruction}\n\n` + files.map((f) => `--- ${f.path}\n${f.content}`).join("\n\n") },
-  ], { json: true });
-  return { edits: Array.isArray(out.edits) ? out.edits : [], summary: out.summary || "" };
+  ], { json: true, maxTokens: 4000 });
+  const known = new Set(files.map((f) => f.path));
+  const changed = (Array.isArray(out.files) ? out.files : [])
+    .filter((f) => f && known.has(f.path) && typeof f.content === "string" && f.content.trim())
+    .filter((f) => f.content !== files.find((x) => x.path === f.path)?.content);
+  return { files: changed, summary: out.summary || "" };
 }
 
 // Turn graph rows into one line the recipient can read at a glance.

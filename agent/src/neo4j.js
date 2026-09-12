@@ -8,7 +8,12 @@ export async function run(statement, parameters = {}) {
   const auth = Buffer.from(`${env("NEO4J_USER", "neo4j")}:${env("NEO4J_PASSWORD")}`).toString("base64");
   const r = await fetch(`${env("NEO4J_URI").replace(/\/$/, "")}/db/${db}/query/v2`, {
     method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json", authorization: `Basic ${auth}` },
+    headers: {
+      "content-type": "application/json", accept: "application/json", authorization: `Basic ${auth}`,
+      // Neo4j on a Daytona sandbox is reached through its preview link, which
+      // wants the sandbox's preview token on every request.
+      ...(env("NEO4J_PREVIEW_TOKEN", "") ? { "x-daytona-preview-token": env("NEO4J_PREVIEW_TOKEN") } : {}),
+    },
     body: JSON.stringify({ statement, parameters }),
   });
   if (!r.ok) throw new Error(`neo4j ${r.status}: ${(await r.text()).slice(0, 300)}`);

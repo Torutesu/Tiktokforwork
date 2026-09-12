@@ -41,7 +41,7 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
 async function registration(): Promise<ServiceWorkerRegistration> {
   const existing = await navigator.serviceWorker.getRegistration('/')
   if (existing) return existing
-  return navigator.serviceWorker.register('/sw.js', { scope: '/' })
+  return navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js', { scope: import.meta.env.BASE_URL })
 }
 
 /// Is this browser already subscribed on this account? Cheap, no prompt.
