@@ -69,6 +69,11 @@ export const Evidence: React.FC<Props> = ({ card, onOpenGraph }) => {
         </span>
       </header>
 
+      {running && (
+        <div className="ev-progress" aria-hidden="true">
+          <i style={{ width: `${Math.min(92, 12 + steps.filter((s) => s.status === 'done').length * 15)}%` }} />
+        </div>
+      )}
       <div className="ev-layers">
         <span className={`ev-layer daytona ${layers.daytona ? 'on' : ''}`}><i />Daytona {t('sandbox')}</span>
         <span className={`ev-layer neo4j ${layers.neo4j ? 'on' : ''}`}><i />Neo4j {t('graph')}</span>

@@ -15,6 +15,8 @@
 .ev-dot { width: 7px; height: 7px; border-radius: 50%; background: #6647f0; animation: ev-pulse 1s ease-in-out infinite; }
 @keyframes ev-pulse { 0%, 100% { opacity: .25; transform: scale(.8) } 50% { opacity: 1; transform: scale(1.15) } }
 
+.ev-progress { height: 3px; border-radius: 2px; background: #e9e4ff; margin-top: 10px; overflow: hidden; }
+.ev-progress i { display: block; height: 100%; background: linear-gradient(90deg, #6647f0, #a78bfa); border-radius: 2px; transition: width 400ms ease; }
 .ev-layers { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .ev-layer {
   display: inline-flex; align-items: center; gap: 6px;

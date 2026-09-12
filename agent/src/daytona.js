@@ -18,6 +18,9 @@ import { env } from "./env.js";
 import { proposeEdits } from "./llm.js";
 
 const REPO_DIR = "/home/daytona/repo";
+// The app may live in a subdirectory of the repository (TARGET_DIR); tests,
+// the preview and the model's edits all happen there. Git happens at the root.
+const WORK_DIR = () => (env("TARGET_DIR", "") ? `${REPO_DIR}/${env("TARGET_DIR", "").replace(/^\/|\/$/g, "")}` : REPO_DIR);
 const CACHE = new URL("../.cache/dryrun.json", import.meta.url);
 
 let client;
@@ -25,7 +28,7 @@ export const daytona = () => (client ||= new Daytona({ apiKey: env("DAYTONA_API_
 const forks = new Map(); // cardId → { sandbox, branch }
 const noop = () => {};
 
-async function sh(sandbox, cmd, timeout = 240, cwd = REPO_DIR) {
+async function sh(sandbox, cmd, timeout = 240, cwd = WORK_DIR()) {
   const r = await sandbox.process.executeCommand(cmd, cwd, undefined, timeout);
   return { code: r.exitCode, out: String(r.result ?? "") };
 }
@@ -59,7 +62,7 @@ export async function ensureDesk(user, { log = noop, onStep = noop } = {}) {
   });
   onStep(`Cloning ${repo} onto the desk`);
   await desk.git.clone(`https://github.com/${repo}.git`, REPO_DIR, undefined, undefined, env("GITHUB_USER", ""), env("GITHUB_TOKEN", ""));
-  await sh(desk, `git config user.email agent@tiktokforwork.dev && git config user.name "TikTok for Work Agent"`);
+  await sh(desk, `git config user.email agent@tiktokforwork.dev && git config user.name "TikTok for Work Agent"`, 30, REPO_DIR);
   onStep("Installing dependencies once", "every fork inherits them");
   await sh(desk, "([ -f package-lock.json ] && npm ci --silent) || npm install --silent || true", 600);
   log(`desk ${name} ready: ${desk.id}`);
@@ -108,7 +111,7 @@ function cachePut(key, value) {
 
 async function applyEdits(sandbox, instruction, onStep) {
   const words = instruction.split(/[\s、。,.]+/).filter((w) => w.length >= 2).slice(0, 6);
-  const grep = await sh(sandbox, `git grep -il -e ${words.map((w) => JSON.stringify(w)).join(" -e ")} -- ':!*.lock' ':!package-lock.json' | head -3 || true`);
+  const grep = await sh(sandbox, `git grep -il -e ${words.map((w) => JSON.stringify(w)).join(" -e ")} -- ':!*.lock' ':!package-lock.json' ':!*.md' ':!test/*' | head -3 || true`);
   const paths = grep.out.split("\n").map((s) => s.trim()).filter(Boolean);
   const files = [];
   for (const p of paths) files.push({ path: p, content: (await sh(sandbox, `head -c 12000 ${JSON.stringify(p)}`)).out });
@@ -119,11 +122,11 @@ async function applyEdits(sandbox, instruction, onStep) {
     const f = files.find((x) => x.path === e.path);
     if (!f || !f.content.includes(e.find)) continue;
     f.content = f.content.replace(e.find, e.replace);
-    await sandbox.fs.uploadFile(Buffer.from(f.content), `${REPO_DIR}/${e.path}`);
+    await sandbox.fs.uploadFile(Buffer.from(f.content), `${WORK_DIR()}/${e.path}`);
     if (!applied.includes(e.path)) applied.push(e.path);
   }
   if (applied.length) {
-    await sh(sandbox, `git add -A && git commit -qm ${JSON.stringify(`Agent: ${instruction}`.slice(0, 72))} || true`);
+    await sh(sandbox, `git add -A && git commit -qm ${JSON.stringify(`Agent: ${instruction}`.slice(0, 72))} || true`, 30, REPO_DIR);
     onStep(`Applied ${applied.length} edit${applied.length === 1 ? "" : "s"}`, applied.join(", "));
   }
   return { applied, summary };
@@ -157,7 +160,7 @@ export async function dryRun(card, desk, { instruction = card.sourceInstruction 
   forks.set(card.id, { sandbox, branch });
 
   try {
-    await sh(sandbox, `git checkout -q -b ${branch}`);
+    await sh(sandbox, `git checkout -q -b ${branch}`, 30, REPO_DIR);
     let editSummary = "", files = [];
     if (withEdits) ({ summary: editSummary, applied: files } = await applyEdits(sandbox, instruction, onStep));
 
@@ -165,7 +168,7 @@ export async function dryRun(card, desk, { instruction = card.sourceInstruction 
     const test = await sh(sandbox, "npm test --silent 2>&1 || true", 300);
     const tests = parseTests(test.out);
     onStep("Ran the test suite", `npm test · ${tests.passed} passed, ${tests.failed} failed`);
-    const stat = await sh(sandbox, "git diff --shortstat HEAD~1 2>/dev/null || echo '0 files changed'");
+    const stat = await sh(sandbox, "git diff --shortstat HEAD~1 2>/dev/null || echo '0 files changed'", 30, REPO_DIR);
     const previewUrl = tests.failed === 0 ? await preview(sandbox, onStep).catch((e) => { log("preview failed", e.message); return undefined; }) : undefined;
 
     const result = {
@@ -188,7 +191,7 @@ export async function pushAndOpenPR(card, dryRunResult, { title, body, onStep = 
   if (!live) throw new Error("no live sandbox for this card (cached or expired run)");
   const repo = env("TARGET_REPO");
   onStep("Pushing the tested branch", dryRunResult.branch);
-  const push = await sh(live.sandbox, `git push -u https://${env("GITHUB_USER")}:${env("GITHUB_TOKEN")}@github.com/${repo}.git ${dryRunResult.branch} 2>&1`);
+  const push = await sh(live.sandbox, `git push -u https://${env("GITHUB_USER")}:${env("GITHUB_TOKEN")}@github.com/${repo}.git ${dryRunResult.branch} 2>&1`, 120, REPO_DIR);
   if (push.code !== 0) throw new Error(`push failed: ${push.out.slice(-300)}`);
   const r = await fetch(`https://api.github.com/repos/${repo}/pulls`, {
     method: "POST",

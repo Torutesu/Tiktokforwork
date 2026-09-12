@@ -1,0 +1,13 @@
+{
+  "name": "booking-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hotel Sakura's booking site. Zero dependencies; tests with node --test.",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20" }
+}

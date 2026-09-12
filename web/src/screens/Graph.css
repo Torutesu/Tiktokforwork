@@ -27,23 +27,29 @@
 .graph-canvas svg { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; user-select: none; }
 .graph-canvas svg:active { cursor: grabbing; }
 
-.edge line { stroke: #4a4d5c; stroke-width: 1.4; transition: opacity 160ms; }
+.edge line { stroke: #3f4252; stroke-width: 1.3; transition: opacity 160ms; }
+.edge.active line { stroke: #0ea5e9; stroke-dasharray: 4 5; animation: g-flow 900ms linear infinite; }
+@keyframes g-flow { to { stroke-dashoffset: -18 } }
 .edge text { font-size: 9px; letter-spacing: .06em; fill: #8a8c9c; paint-order: stroke; stroke: #0f1117; stroke-width: 4px; stroke-linejoin: round; }
 .edge.hi line { stroke: #e6e6ef; stroke-width: 2; }
 .edge.hi text { fill: #fff; }
 .edge.faded { opacity: .12; }
 
 .node { cursor: pointer; transition: opacity 160ms; }
-.node circle { stroke: #0f1117; stroke-width: 2; }
-.node.dim { opacity: .18; }
-.node.selected > circle:not(.pulse):not(.ring) { stroke: #fff; stroke-width: 3; }
+.node .disc { stroke: #0f1117; stroke-width: 2; filter: drop-shadow(0 2px 6px rgba(0,0,0,.45)); }
+.node .halo { opacity: .22; }
+.node.dim { opacity: .14; }
+.node.selected .disc { stroke: #fff; stroke-width: 2.5; }
 .node .ring { fill: none; stroke-width: 2.5; stroke: #22c55e; }
+.node .ring.open { stroke: #f79767; stroke-dasharray: 3 4; opacity: .8; }
 .node.act-decline .ring { stroke: #ef4444; }
 .node.act-reply .ring, .node.act-revise .ring { stroke: #f59e0b; }
 .node .glyph { font-size: 13px; font-weight: 700; fill: #0f1117; pointer-events: none; }
 .node.kind-Repo .glyph { font-size: 10px; }
-.node .name { font-size: 11px; fill: #d5d6e0; pointer-events: none; paint-order: stroke; stroke: #0f1117; stroke-width: 4px; stroke-linejoin: round; }
+.node .tag rect { fill: rgba(15, 17, 23, .82); stroke: rgba(255,255,255,.06); }
+.node .name { font-size: 10.5px; fill: #d5d6e0; pointer-events: none; }
 .node.kind-Decision .name { fill: #fff; font-weight: 600; }
+.node.kind-Decision .tag rect { fill: rgba(247, 151, 103, .16); stroke: rgba(247,151,103,.35); }
 .node .pulse { fill: none; stroke: #f79767; stroke-width: 2; animation: g-pulse 1.4s ease-out infinite; }
 .node.kind-Sandbox .pulse { stroke: #0ea5e9; }
 @keyframes g-pulse { 0% { transform: scale(.8); opacity: .9 } 100% { transform: scale(1.6); opacity: 0 } }
