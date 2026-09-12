@@ -46,6 +46,7 @@ const ja: Dict = {
   "Your team's AIs": 'チームのAI',
   'agents online': 'AI が稼働中',
   'waiting on you': '件があなた待ち',
+  "Sent to {name}'s AI. They will see it as a card; the answer comes back here.": '{name} の AI に送りました。相手にはカードとして届き、答えはここに返ってきます。',
   sandboxes: 'サンドボックス',
   'decisions being checked': '検証中の判断',
   'fleet.lede': 'メンバーごとのAIが自分のクラウドマシン（デスク）を持ち、判断が届くたびにそこから複製したサンドボックスで試してから、あなたに見せます。',

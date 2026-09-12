@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { WebSocketClient } from '../services/WebSocketClient'
-import { DemoClient, isDemo, DEMO_BUSINESSES, demoRoute } from '../services/DemoClient'
+import { DemoClient, isDemo, DEMO_BUSINESSES, demoRoute, demoRouteText } from '../services/DemoClient'
 import { Feed } from './Feed'
 import { ClassicList } from './ClassicList'
 import { Icon } from './Icon'
@@ -23,6 +23,7 @@ import type { AppState, Business } from '../types/card'
 import './Dashboard.css'
 import { useT } from '../utils/i18n'
 import { getLocale } from '../utils/locale'
+import { properName } from '../utils/names'
 
 interface Props {
   userId: string
@@ -51,6 +52,9 @@ export const Dashboard: React.FC<Props> = ({ userId, orgId, relayUrl, sessionTok
   const [state, setState] = useState<AppState>({ cardsById: {} })
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Where what you just told your AI went. Shown for a few seconds.
+  const [notice, setNotice] = useState<string | null>(null)
+  useEffect(() => { if (!notice) return; const id = setTimeout(() => setNotice(null), 6000); return () => clearTimeout(id) }, [notice])
   const [panel, setPanel] = useState<Panel>(null)
   const [screen, setScreen] = useState<Screen>(null)
   const [businesses, setBusinesses] = useState<Business[]>([])
@@ -320,6 +324,7 @@ export const Dashboard: React.FC<Props> = ({ userId, orgId, relayUrl, sessionTok
 
       <div className="toasts">
         {error && <div className="toast error" onClick={() => setError(null)}>{error}</div>}
+        {notice && <div className="toast sent" onClick={() => setNotice(null)}><span className="ai-spark" aria-hidden="true">✦</span> {notice}</div>}
         {executing.map((c) => {
           const ev = c.evidence!
           const last = (ev.timeline || []).filter((s) => s.status !== 'done').slice(-1)[0] || (ev.timeline || []).slice(-1)[0]
@@ -356,8 +361,8 @@ export const Dashboard: React.FC<Props> = ({ userId, orgId, relayUrl, sessionTok
       {panel && <div className="scrim" onClick={() => setPanel(null)} />}
 
       {panel === 'compose' && (
-        <div className="sheet sheet-bottom" role="dialog" aria-label={t('Tell your AI')}>
-          <div className="sheet-title">{t('Tell your AI')}</div>
+        <div className="sheet sheet-bottom compose-sheet" role="dialog" aria-label={t('Tell your AI')}>
+          <div className="sheet-title">{t('Tell your AI')}<button className="close" onClick={() => setPanel(null)} aria-label={t('Close')}>×</button></div>
           <p className="sheet-hint">{t('compose.hint')}</p>
           <CreateDecision
             relayHttpUrl={relayHttpUrl}
@@ -365,7 +370,9 @@ export const Dashboard: React.FC<Props> = ({ userId, orgId, relayUrl, sessionTok
             userId={userId}
             sessionToken={sessionToken}
             autoFocus
+            route={isDemo() ? (text) => demoRouteText(text, userId) : undefined}
             onSendCard={(card) => wsClientRef.current!.sendCardCreated(card)}
+            onSent={(card) => setNotice(t("Sent to {name}'s AI. They will see it as a card; the answer comes back here.", { name: properName(card.recipientUserID) }))}
             onLog={addDebugLog}
             onDone={() => setPanel(null)}
           />

@@ -12,10 +12,14 @@ interface Props {
   onLog: (message: string) => void
   // Called once the card is on its way, so a sheet can close.
   onDone?: () => void
+  // Called with the card that was sent, so the shell can say where it went.
+  onSent?: (card: any) => void
+  // Route locally instead of asking the relay (demo mode).
+  route?: (text: string) => Promise<any>
   autoFocus?: boolean
 }
 
-export const CreateDecision: React.FC<Props> = ({ relayHttpUrl, orgId, userId, sessionToken, onSendCard, onLog, onDone, autoFocus }) => {
+export const CreateDecision: React.FC<Props> = ({ relayHttpUrl, orgId, userId, sessionToken, onSendCard, onLog, onDone, onSent, route, autoFocus }) => {
   const t = useT()
   const [text, setText] = useState('')
   const box = useRef<HTMLTextAreaElement>(null)
@@ -36,6 +40,10 @@ export const CreateDecision: React.FC<Props> = ({ relayHttpUrl, orgId, userId, s
     setBusy(true)
     setError(null)
     try {
+      let routed: any
+      if (route) {
+        routed = await route(text.trim())
+      } else {
       const res = await fetch(`${relayHttpUrl}/ai/route`, {
         method: 'POST',
         headers: {
@@ -62,10 +70,11 @@ export const CreateDecision: React.FC<Props> = ({ relayHttpUrl, orgId, userId, s
           },
         }),
       })
-      const routed = await res.json()
+      routed = await res.json()
       if (!res.ok) {
         setError(routed.message || t('Routing failed'))
         return
+      }
       }
 
       const card = {
@@ -88,6 +97,7 @@ export const CreateDecision: React.FC<Props> = ({ relayHttpUrl, orgId, userId, s
       onSendCard(card)
       onLog(`Created decision: ${card.title} → ${card.recipientUserID}`)
       setText('')
+      onSent?.(card)
       onDone?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))

@@ -253,9 +253,47 @@ export class DemoClient {
   }
   sendNudge(_cardId: string): void {}
   sendSetBusiness(cardId: string, business: string | null): void { this.patch(cardId, (c) => ({ ...c, business: business || undefined })) }
-  sendCardCreated(card: any): void { this.arrive({ ...card, senderUserID: DEMO_USER }) }
+  sendCardCreated(card: any): void {
+    const c = { ...card, senderUserID: DEMO_USER, sourceInstruction: card.summary, requestedBy: { login: DEMO_USER, name: 'Tanaka', role: 'approver', quote: card.summary } }
+    this.arrive(c)
+    // The other side: their AI checks it, they decide, and the answer comes
+    // back here as a card — the loop the product is about.
+    const who = c.recipientUserID
+    const whoName = who.charAt(0).toUpperCase() + who.slice(1)
+    this.agent(who, { working: [{ cardId: c.id, sandboxId: `sb-${c.id.slice(-6)}`, step: 'checking' }] })
+    this.schedule([
+      { at: 4500, run: () => { this.patch(c.id, (x) => ({ ...x, status: 'approved', decision: { action: 'approve', actorUserID: who, decidedAt: new Date().toISOString() } })); this.agent(who, { working: [], done: (this.state.context?.[who]?.agent?.done || 0) + 1 }) } },
+      { at: 5200, run: () => this.arrive({
+        id: `card-demo-reply-${Date.now().toString(36)}`, type: 'notification', status: 'pending', priority: 'low',
+        recipientUserID: DEMO_USER, senderUserID: who, business: c.business,
+        title: `${whoName} approved: ${c.title}`, summary: `${whoName} looked at it and approved. ${c.type === 'approval' ? 'Their AI recorded it in the graph.' : 'Their AI started on it in a sandbox.'}`,
+        context: '', createdAt: new Date().toISOString(), routingReason: 'Answer to something you asked', agentRoute: `${whoName}'s AI → Tanaka's AI`,
+        requestedBy: { login: who, name: whoName, role: who === 'toru' ? 'owner' : 'member' },
+      }) },
+    ])
+  }
   getState(): AppState { return this.state }
   getCard(cardId: string): DecisionCard | null { return this.card(cardId) || null }
+}
+
+/// The router for "Tell your AI" in demo mode: who it is for, what kind of
+/// decision it is, which business it is about. Mentioning a teammate sends
+/// it to them; otherwise the owner decides.
+export async function demoRouteText(text: string, userId: string): Promise<any> {
+  const lower = text.toLowerCase()
+  const people = ['toru', 'yui', 'tanaka'].filter((p) => p !== userId)
+  const recipient = people.find((p) => lower.includes(p)) || 'toru'
+  const type = /approve|approval|ok\?|sign off|承認/.test(lower) ? 'approval' : /tell|let .* know|fyi|share|共有|伝え/.test(lower) ? 'notification' : 'task'
+  const business = /hotel|sakura|booking|room|guest|ホテル|予約/.test(lower) ? 'hotel-sakura' : /cafe|coffee|menu|カフェ/.test(lower) ? 'cafe-honmachi' : undefined
+  const clean = text.trim().replace(/\s+/g, ' ')
+  const title = clean.charAt(0).toUpperCase() + clean.slice(1).replace(/[.。]$/, '')
+  const name = (l: string) => l.charAt(0).toUpperCase() + l.slice(1)
+  await new Promise((r) => setTimeout(r, 700))
+  return {
+    recipientUserID: recipient, cardType: type, title: title.length > 80 ? title.slice(0, 77) + '…' : title,
+    summary: clean, context: business ? `Business: ${business.replace(/-/g, ' ')}` : '', priority: /urgent|asap|today|今日|至急/.test(lower) ? 'high' : 'medium',
+    routingReason: `${name(recipient)} decides this`, agentRoute: `${name(userId)}'s AI → ${name(recipient)}'s AI`, business,
+  }
 }
 
 /// The router, for the "ask anything" bar in demo mode.
