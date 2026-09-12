@@ -15,13 +15,19 @@ h2 { font-size: 42px; line-height: 1.1; margin: 0 0 24px; font-weight: 700; lett
 p, li { font-size: 21px; line-height: 1.45; margin: 0; }
 .muted { color: #6b6b75; } .dark .muted { color: #9a9cab; }
 .foot { position: absolute; left: 80px; right: 80px; bottom: 30px; display: flex; justify-content: space-between; font-size: 12px; color: #9a9aa2; letter-spacing: .08em; text-transform: uppercase; }
-.cols { display: flex; gap: 40px; flex: 1; min-height: 0; }
+.cols { display: flex; gap: 40px; flex: 1; min-height: 0; align-items: flex-start; }
 .col { flex: 1; min-width: 0; }
 .big { font-size: 28px; line-height: 1.35; font-weight: 500; }
 ul { padding-left: 22px; margin: 0; } li { margin-bottom: 10px; }
 .shot { height: 100%; max-height: 540px; border-radius: 22px; border: 1px solid #e4e4ea; box-shadow: 0 20px 50px rgba(16,16,24,.14); object-fit: cover; object-position: top; }
-.shots { display: flex; gap: 24px; align-items: flex-start; justify-content: center; flex: 1; min-height: 0; }
-.shots img { height: 520px; width: auto; border-radius: 22px; border: 1px solid #e4e4ea; box-shadow: 0 20px 50px rgba(16,16,24,.14); }
+.shots { display: flex; gap: 24px; align-items: flex-start; justify-content: center; flex: 1; min-height: 0; height: 450px; }
+.shots img { height: 450px; width: auto; border-radius: 20px; border: 1px solid #e4e4ea; box-shadow: 0 16px 40px rgba(16,16,24,.14); object-fit: cover; object-position: top; }
+.demo-wrap { display: flex; gap: 44px; align-items: center; flex: 1; min-height: 0; }
+.demo-wrap .poster { height: 450px; width: auto; border-radius: 20px; border: 1px solid #2a2e3d; box-shadow: 0 16px 40px rgba(0,0,0,.5); }
+.link { display: inline-block; font-size: 22px; font-weight: 700; color: #fff; background: #6647f0; border-radius: 9999px; padding: 12px 22px; text-decoration: none; margin: 8px 12px 0 0; }
+.link.ghost { background: transparent; border: 1px solid #3a3f52; color: #e6e6ef; }
+video { display: none; }
+@media screen { video { display: block; height: 450px; border-radius: 20px; border: 1px solid #2a2e3d; } .poster { display: none; } }
 .dark .shots img { border-color: #2a2e3d; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
 .pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #e4e4ea; border-radius: 9999px; padding: 8px 16px; font-size: 16px; margin: 0 8px 8px 0; }
 .pill i { width: 10px; height: 10px; border-radius: 50%; }
@@ -115,6 +121,31 @@ pre { font-family: Menlo, "DejaVu Sans Mono", monospace; font-size: 14px; line-h
   <div class="foot"><span>TikTok for Work</span><span>05</span></div>
 </section>
 
+<!-- 5b Demo -->
+<section class="slide dark">
+  <div class="kicker">Live demo · 35 seconds</div>
+  <h2>Card → evidence → swipe → pull request</h2>
+  <div class="demo-wrap">
+    <div>
+      <video src="../docs/media/demo.webm" poster="../docs/media/demo-poster.png" controls muted playsinline></video>
+      <img class="poster" src="../docs/media/demo-poster.png" alt="A frame from the demo video">
+    </div>
+    <div>
+      <ul style="font-size:20px">
+        <li>Toru asks for tax-inclusive prices. The card lands with Tanaka.</li>
+        <li>Tanaka's AI asks the graph, boots a sandbox from its desk, edits, tests, previews. <b>~10 s.</b></li>
+        <li>Tanaka swipes right. The branch is pushed, PR #12 opens, Toru hears back.</li>
+        <li>The next request already knows about this one.</li>
+      </ul>
+      <p style="margin-top:26px"><span class="muted" style="font-size:16px">Try it yourself, no sign-in:</span><br>
+        <a class="link" href="https://torutesu.github.io/Tiktokforwork/?demo">torutesu.github.io/Tiktokforwork/?demo</a></p>
+      <p><span class="muted" style="font-size:16px">Video:</span><br>
+        <a class="link ghost" href="https://torutesu.github.io/Tiktokforwork/demo.webm">torutesu.github.io/Tiktokforwork/demo.webm</a></p>
+    </div>
+  </div>
+  <div class="foot"><span>TikTok for Work</span><span>06</span></div>
+</section>
+
 <!-- 6 Daytona -->
 <section class="slide">
   <div class="kicker">Daytona</div>
@@ -181,8 +212,10 @@ collision:  same repo, still open, and who holds it</pre>
 <!-- 9 Close -->
 <section class="slide dark" style="justify-content:center">
   <div class="kicker">Try it</div>
-  <h1 style="font-size:52px">torutesu.github.io/Tiktokforwork</h1>
-  <p class="big"><span class="muted">Add</span> <code>?demo</code> <span class="muted">for the scripted walkthrough, no backend needed.</span></p>
+  <h1 style="font-size:52px">It's live.</h1>
+  <p><a class="link" href="https://torutesu.github.io/Tiktokforwork/?demo">torutesu.github.io/Tiktokforwork/?demo</a> <span class="muted" style="font-size:16px">scripted walkthrough, no sign-in</span></p>
+  <p><a class="link ghost" href="https://torutesu.github.io/Tiktokforwork/">torutesu.github.io/Tiktokforwork</a> <span class="muted" style="font-size:16px">the real feed, sign in with an email code</span></p>
+  <p><a class="link ghost" href="https://github.com/Torutesu/Tiktokforwork">github.com/Torutesu/Tiktokforwork</a> <span class="muted" style="font-size:16px">source: web, agent, relay, demo site</span></p>
   <div style="margin-top:36px">
     <p class="muted">Working today: feed · routing · real-time relay · GitHub sync · evidence panel · decision graph · fleet screen · agent with desk, snapshot sandboxes, edits, tests, preview, push, PR · Neo4j seeding, queries and live graph.</p>
     <p class="muted" style="margin-top:10px">Next: blast radius of an approval · several sandboxes trying alternatives in parallel · dry-runs for non-code decisions · graph-informed routing.</p>
