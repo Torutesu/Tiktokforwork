@@ -98,6 +98,9 @@ async function workSandbox(desk, card, onStep) {
   const t0 = Date.now();
   const labels = { app: "tiktok-for-work", role: "card", card: card.id, agent: desk.labels?.agent || "" };
   const name = `card-${card.id.slice(-8)}-${Date.now().toString(36)}`;
+  // A decision's sandbox lives until the decision; if nobody decides, it
+  // stops itself and is deleted, so an abandoned card never costs anything.
+  const lifetime = { autoStopInterval: Number(env("CARD_SANDBOX_STOP_MIN", "30")), autoDeleteInterval: Number(env("CARD_SANDBOX_DELETE_MIN", "120")) };
   // 1. A fork: an instant copy of the desk as it is right now.
   try {
     const fork = await daytona().fork(desk, { name });
@@ -111,7 +114,7 @@ async function workSandbox(desk, card, onStep) {
   const snap = desk.labels?.snapshot;
   if (snap) {
     try {
-      const sandbox = await daytona().create({ snapshot: snap, name, labels }, { timeout: 120 });
+      const sandbox = await daytona().create({ snapshot: snap, name, labels, ...lifetime }, { timeout: 120 });
       await sh(sandbox, "git fetch -q origin && git reset -q --hard origin/HEAD 2>/dev/null || git pull -q --ff-only || true", 60, REPO_DIR);
       onStep("Booted a sandbox from my desk's snapshot", `${Date.now() - t0} ms · checkout and dependencies already there`, { bootMs: Date.now() - t0 });
       return { sandbox, bootMs: Date.now() - t0, forked: true, via: "snapshot" };
@@ -120,7 +123,7 @@ async function workSandbox(desk, card, onStep) {
     }
   }
   // 3. A fresh sandbox and a clone: always works, just slower on a heavy repo.
-  const sandbox = await daytona().create({ language: "typescript", name, labels });
+  const sandbox = await daytona().create({ language: "typescript", name, labels, ...lifetime });
   onStep("Created a sandbox", `${Date.now() - t0} ms`, { bootMs: Date.now() - t0 });
   await sandbox.git.clone(`https://github.com/${env("TARGET_REPO")}.git`, REPO_DIR, undefined, undefined, env("GITHUB_USER", ""), env("GITHUB_TOKEN", ""));
   await sh(sandbox, "([ -f package-lock.json ] && npm ci --silent) || npm install --silent || true", 600);

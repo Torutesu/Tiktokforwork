@@ -209,6 +209,7 @@ async function execute(card, decision) {
     done += 1;
     neo4j.recordPR(card.id, exec.prUrl).catch((e) => log("neo4j PR record failed", e.message));
     track.finish({ execution: exec });
+    await daytona.discard(card.id);
     if (card.senderUserID && card.senderUserID !== relay.userId) {
       relay.createCard({
         recipientUserID: card.senderUserID,
@@ -224,6 +225,8 @@ async function execute(card, decision) {
     log("execution failed", err.message);
     track.push(ja ? "実行に失敗" : "Execution failed", err.message.slice(0, 120), { layer: "github", status: "failed" });
     track.finish({ execution: { error: err.message }, status: "failed" });
+    await daytona.discard(card.id);
+    publishStatus();
   }
 }
 
